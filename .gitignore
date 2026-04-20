@@ -10,3 +10,4 @@ backend/server
 backend/seed
 .vscode/
 .idea/
+frontend/tsconfig.tsbuildinfo
