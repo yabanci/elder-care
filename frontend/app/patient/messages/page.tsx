@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { api, type Caregiver } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 export default function PatientMessages() {
   const user = useAuthedUser(['patient']);
+  const { t } = useI18n();
   const [cg, setCg] = useState<Caregiver[]>([]);
 
   useEffect(() => {
@@ -19,7 +21,7 @@ export default function PatientMessages() {
 
   return (
     <Shell user={user}>
-      <h1 className="text-2xl font-bold mb-4">Сообщения</h1>
+      <h1 className="text-2xl font-bold mb-4">{t('messages_title')}</h1>
       <div className="space-y-2">
         {cg.map((c) => (
           <Link
@@ -33,16 +35,14 @@ export default function PatientMessages() {
             <div className="flex-1">
               <div className="font-bold">{c.full_name}</div>
               <div className="text-sm text-ink-500">
-                {c.relation === 'doctor' ? 'Врач' : 'Родственник'}
+                {c.relation === 'doctor' ? t('role_doctor') : t('role_family')}
                 {c.phone && ` · ${c.phone}`}
               </div>
             </div>
           </Link>
         ))}
         {cg.length === 0 && (
-          <div className="card text-ink-500">
-            Пока никто не подключён. Передайте ваш код приглашения врачу или родственнику.
-          </div>
+          <div className="card text-ink-500">{t('messages_no_threads')}</div>
         )}
       </div>
     </Shell>

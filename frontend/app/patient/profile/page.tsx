@@ -5,6 +5,7 @@ import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { Watch, Gauge, Thermometer, Globe } from 'lucide-react';
 import { LANGS, useI18n, type Lang } from '@/lib/i18n';
+import { api, type User } from '@/lib/api';
 
 type DeviceKey = 'watch' | 'bp' | 'thermo';
 
@@ -52,6 +53,19 @@ export default function ProfilePage() {
     });
   }
 
+  async function changeLang(next: Lang) {
+    setLang(next);
+    try {
+      const updated = await api<User>('/api/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ lang: next }),
+      });
+      localStorage.setItem('user', JSON.stringify(updated));
+    } catch {
+      // Non-fatal: localStorage has the lang, backend sync can retry later.
+    }
+  }
+
   if (!user) return null;
 
   return (
@@ -78,7 +92,7 @@ export default function ProfilePage() {
           {LANGS.map((l) => (
             <button
               key={l.code}
-              onClick={() => setLang(l.code as Lang)}
+              onClick={() => changeLang(l.code as Lang)}
               className={`min-h-12 rounded-xl border-2 font-semibold text-base ${
                 lang === l.code
                   ? 'border-primary-600 bg-primary-50 text-primary-700'

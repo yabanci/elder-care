@@ -94,7 +94,7 @@ export function BMICard({
         <div className="flex-1">
           <div className="font-bold">{t('bmi_label')}</div>
           <div className="text-ink-500 text-sm">
-            {height} · {t('bmi_need_weight')}
+            {height} {t('unit_cm')} · {t('bmi_need_weight')}
           </div>
         </div>
       </div>
@@ -112,7 +112,7 @@ export function BMICard({
       <div className="flex-1">
         <div className="font-bold text-2xl">{bmi.toFixed(1)}</div>
         <div className="text-ink-500 text-sm">
-          {t('bmi_label')} · {height} · {weight}
+          {t('bmi_label')} · {height} {t('unit_cm')} · {weight} {t('unit_kg')}
         </div>
       </div>
       <div className={status.cls}>{status.label}</div>

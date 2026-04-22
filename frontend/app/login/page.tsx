@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, setToken, type User } from '@/lib/api';
-import { useI18n } from '@/lib/i18n';
+import { persistLangLocally, useI18n } from '@/lib/i18n';
+import { LangSwitcher } from '@/components/LangSwitcher';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,7 +26,12 @@ export default function LoginPage() {
       });
       setToken(res.token);
       localStorage.setItem('user', JSON.stringify(res.user));
-      router.push(res.user.role === 'patient' ? '/patient' : '/care');
+      persistLangLocally(res.user.lang);
+      if (res.user.role === 'patient' && !res.user.onboarded) {
+        router.push('/patient/onboarding');
+      } else {
+        router.push(res.user.role === 'patient' ? '/patient' : '/care');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка входа');
     } finally {
@@ -36,6 +42,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary-50 to-white">
       <div className="w-full max-w-md">
+        <LangSwitcher className="mb-4" />
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-600 text-white text-3xl mb-4">
             ❤

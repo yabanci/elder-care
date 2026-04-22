@@ -58,6 +58,7 @@ export interface User {
   bp_norm?: string;
   prescribed_meds?: string;
   onboarded: boolean;
+  lang?: string;
 }
 
 export interface Metric {

@@ -6,6 +6,7 @@ import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { api, type Alert, type LinkedPatient, type MetricKind } from '@/lib/api';
 import { METRIC_META, formatValue } from '@/lib/metric-meta';
+import { useI18n } from '@/lib/i18n';
 
 interface Row {
   alert: Alert;
@@ -14,6 +15,7 @@ interface Row {
 
 export default function CareAlerts() {
   const user = useAuthedUser(['doctor', 'family']);
+  const { t, lang } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
 
   useEffect(() => {
@@ -36,13 +38,14 @@ export default function CareAlerts() {
 
   return (
     <Shell user={user}>
-      <h1 className="text-2xl font-bold mb-4">Активные оповещения</h1>
+      <h1 className="text-2xl font-bold mb-4">{t('care_alerts_title')}</h1>
       <div className="space-y-2">
         {rows.map(({ alert: a, patient: p }) => {
           const meta = METRIC_META[a.kind as MetricKind];
           const color = a.severity === 'critical'
             ? 'border-danger-500/30 bg-danger-500/5'
             : 'border-warn-500/30 bg-warn-500/5';
+          const localeTag = lang === 'kk' ? 'kk-KZ' : lang === 'en' ? 'en-US' : 'ru-RU';
           return (
             <Link
               key={a.id}
@@ -55,7 +58,7 @@ export default function CareAlerts() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold">{p.full_name}</span>
                     <span className={a.severity === 'critical' ? 'badge-danger' : 'badge-warn'}>
-                      {a.severity === 'critical' ? 'Критично' : 'Внимание'}
+                      {a.severity === 'critical' ? t('severity_critical') : t('severity_warning')}
                     </span>
                     <span className="text-ink-500">· {meta?.label ?? a.kind}</span>
                   </div>
@@ -64,19 +67,19 @@ export default function CareAlerts() {
                     <div className="text-sm text-ink-500 mt-1">
                       {formatValue(a.kind as MetricKind, a.value)} {meta.unit}
                       {a.baseline_mean != null && (
-                        <> · норма ≈ {formatValue(a.kind as MetricKind, a.baseline_mean)}</>
+                        <> · {t('alert_baseline')} ≈ {formatValue(a.kind as MetricKind, a.baseline_mean)}</>
                       )}
                     </div>
                   )}
                   <div className="text-xs text-ink-500 mt-1">
-                    {new Date(a.created_at).toLocaleString('ru-RU')}
+                    {new Date(a.created_at).toLocaleString(localeTag)}
                   </div>
                 </div>
               </div>
             </Link>
           );
         })}
-        {rows.length === 0 && <div className="card text-ink-500">Активных оповещений нет.</div>}
+        {rows.length === 0 && <div className="card text-ink-500">{t('care_alerts_empty')}</div>}
       </div>
     </Shell>
   );

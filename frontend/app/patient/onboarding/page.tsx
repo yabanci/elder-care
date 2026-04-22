@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api, type User } from '@/lib/api';
 import { useAuthedUser } from '@/components/AuthGate';
 import { useI18n } from '@/lib/i18n';
+import { LangSwitcher } from '@/components/LangSwitcher';
 import { ClipboardList } from 'lucide-react';
 
 export default function OnboardingPage() {
@@ -26,11 +27,11 @@ export default function OnboardingPage() {
     const height = parseInt(form.height, 10);
     const weight = parseFloat(form.weight);
     if (!height || height < 80 || height > 250) {
-      setError('Укажите корректный рост (80-250 см)');
+      setError(t('onboard_bad_height'));
       return;
     }
     if (!weight || weight < 20 || weight > 300) {
-      setError('Укажите корректный вес (20-300 кг)');
+      setError(t('onboard_bad_weight'));
       return;
     }
     setSaving(true);
@@ -68,6 +69,7 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen flex items-start justify-center p-4 bg-gradient-to-br from-primary-50 to-white">
       <div className="w-full max-w-md py-6">
+        <LangSwitcher className="mb-4" />
         <div className="text-center mb-6">
           <div className="inline-flex w-14 h-14 items-center justify-center rounded-2xl bg-primary-100 text-primary-700 mb-3">
             <ClipboardList className="w-7 h-7" />

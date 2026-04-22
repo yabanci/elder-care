@@ -32,6 +32,7 @@ type User struct {
 	BPNorm            *string    `json:"bp_norm,omitempty"`
 	PrescribedMeds    *string    `json:"prescribed_meds,omitempty"`
 	Onboarded         bool       `json:"onboarded"`
+	Lang              *string    `json:"lang,omitempty"`
 }
 
 type Service struct {
@@ -103,10 +104,10 @@ func (s *Service) Register(c *gin.Context) {
 		INSERT INTO users(email, password_hash, full_name, role, phone, birth_date, invite_code, onboarded)
 		VALUES($1,$2,$3,$4,$5,$6,$7,$8)
 		RETURNING id, email, full_name, role, phone, birth_date, invite_code,
-		          height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded
+		          height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang
 	`, strings.ToLower(req.Email), string(hash), req.FullName, req.Role, phone, birth, inviteCode, onboarded).
 		Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
-			&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded)
+			&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang)
 	if err != nil {
 		if strings.Contains(err.Error(), "users_email_key") {
 			httpx.BadRequest(c, "email already registered")
@@ -137,11 +138,11 @@ func (s *Service) Login(c *gin.Context) {
 	)
 	err := s.pool.QueryRow(c.Request.Context(), `
 		SELECT id, email, full_name, role, phone, birth_date, invite_code,
-		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, password_hash
+		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang, password_hash
 		FROM users WHERE email=$1
 	`, strings.ToLower(req.Email)).
 		Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
-			&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &hash)
+			&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang, &hash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			httpx.Unauthorized(c, "invalid credentials")
@@ -178,10 +179,10 @@ func (s *Service) GetUser(ctx context.Context, id string) (User, error) {
 	var u User
 	err := s.pool.QueryRow(ctx, `
 		SELECT id, email, full_name, role, phone, birth_date, invite_code,
-		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded
+		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang
 		FROM users WHERE id=$1
 	`, id).Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
-		&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded)
+		&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang)
 	return u, err
 }
 
@@ -191,6 +192,7 @@ type updateProfileReq struct {
 	BPNorm            *string `json:"bp_norm"`
 	PrescribedMeds    *string `json:"prescribed_meds"`
 	Onboarded         *bool   `json:"onboarded"`
+	Lang              *string `json:"lang"`
 }
 
 func (s *Service) UpdateMe(c *gin.Context) {
@@ -198,6 +200,14 @@ func (s *Service) UpdateMe(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpx.BadRequest(c, err.Error())
 		return
+	}
+	if req.Lang != nil {
+		switch *req.Lang {
+		case "ru", "kk", "en":
+		default:
+			httpx.BadRequest(c, "invalid lang, expected one of: ru, kk, en")
+			return
+		}
 	}
 	userID := c.GetString(CtxUserID)
 	_, err := s.pool.Exec(c.Request.Context(), `
@@ -207,9 +217,10 @@ func (s *Service) UpdateMe(c *gin.Context) {
 			bp_norm            = COALESCE($4, bp_norm),
 			prescribed_meds    = COALESCE($5, prescribed_meds),
 			onboarded          = COALESCE($6, onboarded),
+			lang               = COALESCE($7, lang),
 			updated_at         = now()
 		WHERE id=$1
-	`, userID, req.HeightCm, req.ChronicConditions, req.BPNorm, req.PrescribedMeds, req.Onboarded)
+	`, userID, req.HeightCm, req.ChronicConditions, req.BPNorm, req.PrescribedMeds, req.Onboarded, req.Lang)
 	if err != nil {
 		httpx.Internal(c, err)
 		return

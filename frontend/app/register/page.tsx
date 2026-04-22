@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, setToken, type Role, type User } from '@/lib/api';
-import { useI18n } from '@/lib/i18n';
+import { persistLangLocally, useI18n } from '@/lib/i18n';
+import { LangSwitcher } from '@/components/LangSwitcher';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -31,6 +32,7 @@ export default function RegisterPage() {
       });
       setToken(res.token);
       localStorage.setItem('user', JSON.stringify(res.user));
+      persistLangLocally(res.user.lang);
       if (res.user.role === 'patient' && !res.user.onboarded) {
         router.push('/patient/onboarding');
       } else {
@@ -50,6 +52,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary-50 to-white">
       <div className="w-full max-w-md">
+        <LangSwitcher className="mb-4" />
         <form onSubmit={submit} className="card space-y-5">
           <h1 className="text-2xl font-bold">{t('register_title')}</h1>
 

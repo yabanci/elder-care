@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { api, type LinkedPatient } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 export default function CareMessages() {
   const user = useAuthedUser(['doctor', 'family']);
+  const { t } = useI18n();
   const [patients, setPatients] = useState<LinkedPatient[]>([]);
 
   useEffect(() => {
@@ -19,7 +21,7 @@ export default function CareMessages() {
 
   return (
     <Shell user={user}>
-      <h1 className="text-2xl font-bold mb-4">Сообщения</h1>
+      <h1 className="text-2xl font-bold mb-4">{t('messages_title')}</h1>
       <div className="space-y-2">
         {patients.map((p) => (
           <Link
@@ -39,7 +41,7 @@ export default function CareMessages() {
             </div>
           </Link>
         ))}
-        {patients.length === 0 && <div className="card text-ink-500">Нет подключённых пациентов.</div>}
+        {patients.length === 0 && <div className="card text-ink-500">{t('care_no_patients')}</div>}
       </div>
     </Shell>
   );

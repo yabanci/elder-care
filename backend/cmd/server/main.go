@@ -97,11 +97,12 @@ func main() {
 	api.GET("/patients/:patientID/medications/today", medSvc.Today)
 	api.POST("/patients/:patientID/metrics", metricsSvc.CreateForPatient)
 
-	// plans (weekly schedule)
-	api.GET("/plans", plansSvc.List)
-	api.POST("/plans", plansSvc.Create)
-	api.PATCH("/plans/:id", plansSvc.Update)
-	api.DELETE("/plans/:id", plansSvc.Delete)
+	// plans (weekly schedule) — patients only
+	plansGroup := api.Group("/plans", auth.RequireRole("patient"))
+	plansGroup.GET("", plansSvc.List)
+	plansGroup.POST("", plansSvc.Create)
+	plansGroup.PATCH("/:id", plansSvc.Update)
+	plansGroup.DELETE("/:id", plansSvc.Delete)
 
 	// messaging
 	api.POST("/messages", msgSvc.Send)

@@ -5,9 +5,11 @@ import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { api, type Alert, type MetricKind } from '@/lib/api';
 import { METRIC_META, formatValue } from '@/lib/metric-meta';
+import { useI18n } from '@/lib/i18n';
 
 export default function AlertsPage() {
   const user = useAuthedUser(['patient']);
+  const { t, lang } = useI18n();
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export default function AlertsPage() {
 
   return (
     <Shell user={user}>
-      <h1 className="text-2xl font-bold mb-4">Оповещения</h1>
+      <h1 className="text-2xl font-bold mb-4">{t('alerts_title')}</h1>
       <div className="space-y-2">
         {alerts.map((a) => {
           const meta = METRIC_META[a.kind as MetricKind];
@@ -39,6 +41,7 @@ export default function AlertsPage() {
             a.severity === 'critical'
               ? 'border-danger-500/30 bg-danger-500/5'
               : 'border-warn-500/30 bg-warn-500/5';
+          const localeTag = lang === 'kk' ? 'kk-KZ' : lang === 'en' ? 'en-US' : 'ru-RU';
           return (
             <div key={a.id} className={`card !p-4 border ${color}`}>
               <div className="flex items-start gap-3">
@@ -51,36 +54,36 @@ export default function AlertsPage() {
                         a.severity === 'critical' ? 'badge-danger' : 'badge-warn'
                       }
                     >
-                      {a.severity === 'critical' ? 'Критично' : 'Внимание'}
+                      {a.severity === 'critical' ? t('severity_critical') : t('severity_warning')}
                     </span>
-                    {a.acknowledged && <span className="badge-ok">Просмотрено</span>}
+                    {a.acknowledged && <span className="badge-ok">✓</span>}
                   </div>
                   <div className="text-ink-700 mt-1">{a.reason}</div>
                   {a.value != null && (
                     <div className="text-sm text-ink-500 mt-1">
-                      Значение: <b>{formatValue(a.kind as MetricKind, a.value)} {meta?.unit}</b>
+                      {t('alert_value')}: <b>{formatValue(a.kind as MetricKind, a.value)} {meta?.unit}</b>
                       {a.baseline_mean != null && (
                         <>
-                          {' '}· Норма ≈ {formatValue(a.kind as MetricKind, a.baseline_mean)}
+                          {' '}· {t('alert_baseline')} ≈ {formatValue(a.kind as MetricKind, a.baseline_mean)}
                           {a.baseline_std ? ` ± ${a.baseline_std.toFixed(1)}` : ''}
                         </>
                       )}
                     </div>
                   )}
                   <div className="text-xs text-ink-500 mt-1">
-                    {new Date(a.created_at).toLocaleString('ru-RU')}
+                    {new Date(a.created_at).toLocaleString(localeTag)}
                   </div>
                 </div>
                 {!a.acknowledged && (
                   <button onClick={() => ack(a.id)} className="btn-ghost !min-h-10 !px-3">
-                    Понятно
+                    {t('alerts_ack')}
                   </button>
                 )}
               </div>
             </div>
           );
         })}
-        {alerts.length === 0 && <div className="card text-ink-500">Всё в порядке — оповещений нет.</div>}
+        {alerts.length === 0 && <div className="card text-ink-500">{t('alerts_empty')}</div>}
       </div>
     </Shell>
   );

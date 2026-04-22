@@ -30,6 +30,8 @@ export default function PatientHome() {
   useEffect(() => {
     if (!user) return;
     refresh();
+    // Refresh only when a different user logs in — not on every local user update (e.g. BMI save).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   async function refresh() {
@@ -73,7 +75,7 @@ export default function PatientHome() {
             <div className="text-ink-500">{greeting},</div>
             <h1 className="text-3xl font-bold">{user.full_name.split(' ')[0]}</h1>
           </div>
-          <a href="tel:103" className="btn-accent" aria-label="Вызов скорой">
+          <a href="tel:103" className="btn-accent" aria-label={t('call_emergency')}>
             <Phone className="w-5 h-5" /> 103
           </a>
         </div>

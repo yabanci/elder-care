@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { api, type LinkedPatient } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { Users, Plus } from 'lucide-react';
 
 export default function CareHome() {
   const user = useAuthedUser(['doctor', 'family']);
+  const { t } = useI18n();
   const [patients, setPatients] = useState<LinkedPatient[]>([]);
 
   useEffect(() => {
@@ -21,9 +23,9 @@ export default function CareHome() {
   return (
     <Shell user={user}>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Мои пациенты</h1>
+        <h1 className="text-2xl font-bold">{t('care_title')}</h1>
         <Link href="/care/link" className="btn-primary">
-          <Plus className="w-5 h-5" /> Добавить
+          <Plus className="w-5 h-5" /> {t('add')}
         </Link>
       </div>
       <div className="space-y-2">
@@ -49,10 +51,8 @@ export default function CareHome() {
           <div className="card flex items-start gap-3">
             <Users className="w-6 h-6 text-ink-500" />
             <div>
-              <div className="font-bold">Пациентов пока нет</div>
-              <div className="text-ink-500 mt-1">
-                Попросите пациента сообщить вам код приглашения и нажмите «Добавить».
-              </div>
+              <div className="font-bold">{t('care_no_patients')}</div>
+              <div className="text-ink-500 mt-1">{t('care_link_hint')}</div>
             </div>
           </div>
         )}

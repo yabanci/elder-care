@@ -12,6 +12,8 @@ export const LANGS: { code: Lang; label: string; flag: string }[] = [
 
 const DICT: Record<Lang, Record<string, string>> = {
   ru: {
+    app_name: 'ElderCare',
+    app_tagline: 'Здоровье под контролем',
     // nav
     nav_home: 'Главная',
     nav_meds: 'Лекарства',
@@ -27,9 +29,21 @@ const DICT: Record<Lang, Record<string, string>> = {
     edit: 'Изменить',
     delete: 'Удалить',
     add: 'Добавить',
+    back: 'Назад',
     confirm_delete: 'Подтвердите удаление',
     yes: 'Да',
+    no: 'Нет',
     loading: 'Загружаем...',
+    saving: 'Сохраняем...',
+    no_data: 'Нет данных',
+    sending: 'Отправляем...',
+    send: 'Отправить',
+    unit_cm: 'см',
+    unit_kg: 'кг',
+    // roles
+    role_patient: 'Пациент',
+    role_doctor: 'Врач',
+    role_family: 'Родственник',
     // login
     login_title: 'Вход',
     login_email: 'Email',
@@ -42,9 +56,6 @@ const DICT: Record<Lang, Record<string, string>> = {
     // register
     register_title: 'Регистрация',
     register_iam: 'Я —',
-    role_patient: 'Пациент',
-    role_doctor: 'Врач',
-    role_family: 'Родственник',
     register_fullname: 'ФИО',
     register_password_hint: 'Пароль (минимум 6 символов)',
     register_phone: 'Телефон',
@@ -69,6 +80,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     alerts_new: 'новых оповещений',
     take_dose: 'Принял ✓',
     dose_taken: '✓ Принято',
+    call_emergency: 'Вызов скорой',
     // plans
     plans_title: 'Недельное расписание',
     plans_add: 'План',
@@ -122,8 +134,46 @@ const DICT: Record<Lang, Record<string, string>> = {
     onboard_meds: 'Назначенные лекарства',
     onboard_submit: 'Сохранить и продолжить',
     onboard_saving: 'Сохраняем...',
+    onboard_bad_height: 'Укажите корректный рост (80-250 см)',
+    onboard_bad_weight: 'Укажите корректный вес (20-300 кг)',
+    // alerts
+    alerts_title: 'Оповещения',
+    alerts_empty: 'Оповещений нет.',
+    alerts_ack: 'Подтвердить',
+    alerts_ack_all: 'Подтвердить все',
+    alert_reason: 'Причина',
+    alert_value: 'Значение',
+    alert_baseline: 'Норма',
+    severity_info: 'Инфо',
+    severity_warning: 'Предупреждение',
+    severity_critical: 'Критично',
+    // messages
+    messages_title: 'Чат',
+    messages_empty: 'Нет сообщений.',
+    messages_no_threads: 'Пока нет переписок.',
+    message_placeholder: 'Напишите сообщение...',
+    // metrics
+    metrics_title: 'Метрики',
+    metrics_history: 'История',
+    metrics_add: 'Добавить замер',
+    metrics_chart_empty: 'Нет данных для графика.',
+    // care
+    care_title: 'Мои пациенты',
+    care_no_patients: 'Пока нет подключённых пациентов.',
+    care_link_title: 'Подключить пациента',
+    care_link_hint: 'Введите код-приглашение, который вам дал пациент.',
+    care_link_code: 'Код-приглашение',
+    care_link_submit: 'Подключиться',
+    care_link_success: 'Пациент подключён.',
+    care_alerts_title: 'Оповещения пациентов',
+    care_alerts_empty: 'По вашим пациентам оповещений нет.',
+    care_patient_metrics: 'Показатели',
+    care_patient_alerts: 'Оповещения',
+    care_patient_meds: 'Лекарства',
   },
   kk: {
+    app_name: 'ElderCare',
+    app_tagline: 'Денсаулық — бақылауда',
     nav_home: 'Басты',
     nav_meds: 'Дәрілер',
     nav_plans: 'Кесте',
@@ -137,9 +187,20 @@ const DICT: Record<Lang, Record<string, string>> = {
     edit: 'Өзгерту',
     delete: 'Өшіру',
     add: 'Қосу',
+    back: 'Артқа',
     confirm_delete: 'Өшіруді растаңыз',
     yes: 'Иә',
+    no: 'Жоқ',
     loading: 'Жүктелуде...',
+    saving: 'Сақталуда...',
+    no_data: 'Деректер жоқ',
+    sending: 'Жіберілуде...',
+    send: 'Жіберу',
+    unit_cm: 'см',
+    unit_kg: 'кг',
+    role_patient: 'Пациент',
+    role_doctor: 'Дәрігер',
+    role_family: 'Туысқан',
     login_title: 'Кіру',
     login_email: 'Email',
     login_password: 'Құпиясөз',
@@ -147,12 +208,9 @@ const DICT: Record<Lang, Record<string, string>> = {
     login_no_account: 'Аккаунт жоқ па?',
     login_register: 'Тіркелу',
     login_demo: 'Демо-қолжетімділік:',
-    login_tagline: 'Сіздің және жақындарыңыздың денсаулығы бақылауда',
+    login_tagline: 'Сіз бен жақындарыңыздың денсаулығы — бақылауда',
     register_title: 'Тіркелу',
     register_iam: 'Мен —',
-    role_patient: 'Пациент',
-    role_doctor: 'Дәрігер',
-    role_family: 'Туысқан',
     register_fullname: 'Аты-жөні',
     register_password_hint: 'Құпиясөз (кемінде 6 таңба)',
     register_phone: 'Телефон',
@@ -166,16 +224,17 @@ const DICT: Record<Lang, Record<string, string>> = {
     greeting_evening: 'Қайырлы кеш',
     recent_metrics: 'Соңғы көрсеткіштер',
     today_meds: 'Бүгінгі дәрілер',
-    today_no_meds: 'Бүгінге дәрілер жоқ.',
+    today_no_meds: 'Бүгінге дәрі жоқ.',
     quick_entry: 'Жылдам енгізу',
     all_metrics: 'Барлық көрсеткіштер мен графиктер →',
     show_all: 'Барлығы →',
     invite_code_label: 'Шақыру коды',
     invite_code_hint:
-      'Бұл кодты дәрігеріңізге немесе туысқаныңызға беріңіз, олар көрсеткіштеріңізді көре алу үшін.',
+      'Бұл кодты дәрігеріңізге не туысқаныңызға беріңіз — олар көрсеткіштеріңізді көре алады.',
     alerts_new: 'жаңа хабарлау',
     take_dose: 'Қабылдадым ✓',
     dose_taken: '✓ Қабылданды',
+    call_emergency: 'Жедел жәрдем',
     plans_title: 'Апталық кесте',
     plans_add: 'Жоспар',
     plans_edit_title: 'Өзгерту',
@@ -224,8 +283,42 @@ const DICT: Record<Lang, Record<string, string>> = {
     onboard_meds: 'Тағайындалған дәрілер',
     onboard_submit: 'Сақтап, жалғастыру',
     onboard_saving: 'Сақталуда...',
+    onboard_bad_height: 'Дұрыс бой көрсетіңіз (80-250 см)',
+    onboard_bad_weight: 'Дұрыс салмақ көрсетіңіз (20-300 кг)',
+    alerts_title: 'Хабарлар',
+    alerts_empty: 'Хабар жоқ.',
+    alerts_ack: 'Растау',
+    alerts_ack_all: 'Барлығын растау',
+    alert_reason: 'Себеп',
+    alert_value: 'Мән',
+    alert_baseline: 'Норма',
+    severity_info: 'Ақпарат',
+    severity_warning: 'Ескерту',
+    severity_critical: 'Қауіпті',
+    messages_title: 'Чат',
+    messages_empty: 'Хабар жоқ.',
+    messages_no_threads: 'Әзірге сөйлесу жоқ.',
+    message_placeholder: 'Хабарды жазыңыз...',
+    metrics_title: 'Көрсеткіштер',
+    metrics_history: 'Тарих',
+    metrics_add: 'Өлшем қосу',
+    metrics_chart_empty: 'График үшін деректер жоқ.',
+    care_title: 'Менің пациенттерім',
+    care_no_patients: 'Әзірге қосылған пациент жоқ.',
+    care_link_title: 'Пациентті қосу',
+    care_link_hint: 'Пациент берген шақыру кодын енгізіңіз.',
+    care_link_code: 'Шақыру коды',
+    care_link_submit: 'Қосылу',
+    care_link_success: 'Пациент қосылды.',
+    care_alerts_title: 'Пациенттердің хабарлары',
+    care_alerts_empty: 'Пациенттер бойынша хабар жоқ.',
+    care_patient_metrics: 'Көрсеткіштер',
+    care_patient_alerts: 'Хабарлар',
+    care_patient_meds: 'Дәрілер',
   },
   en: {
+    app_name: 'ElderCare',
+    app_tagline: 'Health under control',
     nav_home: 'Home',
     nav_meds: 'Meds',
     nav_plans: 'Schedule',
@@ -239,9 +332,20 @@ const DICT: Record<Lang, Record<string, string>> = {
     edit: 'Edit',
     delete: 'Delete',
     add: 'Add',
+    back: 'Back',
     confirm_delete: 'Confirm deletion',
     yes: 'Yes',
+    no: 'No',
     loading: 'Loading...',
+    saving: 'Saving...',
+    no_data: 'No data',
+    sending: 'Sending...',
+    send: 'Send',
+    unit_cm: 'cm',
+    unit_kg: 'kg',
+    role_patient: 'Patient',
+    role_doctor: 'Doctor',
+    role_family: 'Family',
     login_title: 'Login',
     login_email: 'Email',
     login_password: 'Password',
@@ -252,9 +356,6 @@ const DICT: Record<Lang, Record<string, string>> = {
     login_tagline: 'Health under control — for you and your loved ones',
     register_title: 'Register',
     register_iam: 'I am —',
-    role_patient: 'Patient',
-    role_doctor: 'Doctor',
-    role_family: 'Family',
     register_fullname: 'Full name',
     register_password_hint: 'Password (at least 6 chars)',
     register_phone: 'Phone',
@@ -278,6 +379,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     alerts_new: 'new alerts',
     take_dose: 'Taken ✓',
     dose_taken: '✓ Taken',
+    call_emergency: 'Emergency',
     plans_title: 'Weekly schedule',
     plans_add: 'Plan',
     plans_edit_title: 'Edit',
@@ -326,19 +428,56 @@ const DICT: Record<Lang, Record<string, string>> = {
     onboard_meds: 'Prescribed medications',
     onboard_submit: 'Save & continue',
     onboard_saving: 'Saving...',
+    onboard_bad_height: 'Enter a valid height (80-250 cm)',
+    onboard_bad_weight: 'Enter a valid weight (20-300 kg)',
+    alerts_title: 'Alerts',
+    alerts_empty: 'No alerts.',
+    alerts_ack: 'Acknowledge',
+    alerts_ack_all: 'Acknowledge all',
+    alert_reason: 'Reason',
+    alert_value: 'Value',
+    alert_baseline: 'Baseline',
+    severity_info: 'Info',
+    severity_warning: 'Warning',
+    severity_critical: 'Critical',
+    messages_title: 'Chat',
+    messages_empty: 'No messages.',
+    messages_no_threads: 'No conversations yet.',
+    message_placeholder: 'Type a message...',
+    metrics_title: 'Metrics',
+    metrics_history: 'History',
+    metrics_add: 'Add reading',
+    metrics_chart_empty: 'No data for chart.',
+    care_title: 'My patients',
+    care_no_patients: 'No connected patients yet.',
+    care_link_title: 'Connect a patient',
+    care_link_hint: 'Enter the invite code your patient gave you.',
+    care_link_code: 'Invite code',
+    care_link_submit: 'Connect',
+    care_link_success: 'Patient connected.',
+    care_alerts_title: 'Patient alerts',
+    care_alerts_empty: 'No alerts for your patients.',
+    care_patient_metrics: 'Metrics',
+    care_patient_alerts: 'Alerts',
+    care_patient_meds: 'Medications',
   },
 };
 
 const STORAGE_KEY = 'lang';
 
+function resolveLang(input: string | null): Lang | null {
+  if (!input) return null;
+  const v = input.toLowerCase() as Lang;
+  if (v === 'ru' || v === 'kk' || v === 'en') return v;
+  return null;
+}
+
 function detectInitialLang(): Lang {
   if (typeof window === 'undefined') return 'ru';
-  const stored = localStorage.getItem(STORAGE_KEY) as Lang | null;
-  if (stored && DICT[stored]) return stored;
-  const nav = navigator.language.slice(0, 2).toLowerCase();
-  if (nav === 'kk') return 'kk';
-  if (nav === 'en') return 'en';
-  return 'ru';
+  const stored = resolveLang(localStorage.getItem(STORAGE_KEY));
+  if (stored) return stored;
+  const nav = resolveLang(navigator.language.slice(0, 2));
+  return nav ?? 'ru';
 }
 
 interface I18nCtx {
@@ -350,11 +489,13 @@ interface I18nCtx {
 const Ctx = createContext<I18nCtx | null>(null);
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>('ru');
+  // Synchronous initializer so first client paint matches stored lang.
+  // SSR renders 'ru'; the <html suppressHydrationWarning> swallows any text mismatch on hydration.
+  const [lang, setLangState] = useState<Lang>(() => detectInitialLang());
 
   useEffect(() => {
-    setLangState(detectInitialLang());
-  }, []);
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   function setLang(l: Lang) {
     setLangState(l);
@@ -371,7 +512,6 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 export function useI18n(): I18nCtx {
   const ctx = useContext(Ctx);
   if (!ctx) {
-    // Fallback (e.g. during hydration): return a no-op that uses ru dict.
     return {
       lang: 'ru',
       setLang: () => {},
@@ -379,4 +519,11 @@ export function useI18n(): I18nCtx {
     };
   }
   return ctx;
+}
+
+export function persistLangLocally(l: string | null | undefined) {
+  const resolved = resolveLang(l ?? null);
+  if (resolved && typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY, resolved);
+  }
 }
