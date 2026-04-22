@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (go)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: eldercare
+          POSTGRES_PASSWORD: eldercare_dev
+          POSTGRES_DB: eldercare
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U eldercare"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: go vet
+        working-directory: backend
+        run: go vet ./...
+
+      - name: go build
+        working-directory: backend
+        run: go build ./...
+
+      - name: go test
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgres://eldercare:eldercare_dev@localhost:5432/eldercare?sslmode=disable
+        # -p 1 — integration tests across packages share the same DB via TRUNCATE; serialize them.
+        run: go test -p 1 -race -count=1 ./...
+
+  frontend:
+    name: Frontend (next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: frontend
+        run: npx next lint
+
+      - name: Build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8090
+        run: npm run build
+
+  docker-compose:
+    name: Docker Compose build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose build

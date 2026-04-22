@@ -32,6 +32,10 @@ install:
 test:
 	cd backend && go test ./...
 
+# Integration tests hit a real Postgres via TEST_DATABASE_URL. Uses the dev db from docker compose up.
+test-integration:
+	cd backend && TEST_DATABASE_URL="postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=disable" go test -p 1 -race -count=1 ./...
+
 lint:
 	cd backend && go vet ./...
 	cd frontend && npm run lint
