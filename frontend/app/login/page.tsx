@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, setToken, type User } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,14 +41,14 @@ export default function LoginPage() {
             ❤
           </div>
           <h1 className="text-3xl font-bold">ElderCare</h1>
-          <p className="text-ink-500 mt-2">Здоровье под контролем — для вас и ваших близких</p>
+          <p className="text-ink-500 mt-2">{t('login_tagline')}</p>
         </div>
 
         <form onSubmit={submit} className="card space-y-5">
-          <h2 className="text-2xl font-bold">Вход</h2>
+          <h2 className="text-2xl font-bold">{t('login_title')}</h2>
 
           <div>
-            <label className="label" htmlFor="email">Email</label>
+            <label className="label" htmlFor="email">{t('login_email')}</label>
             <input
               id="email"
               type="email"
@@ -60,7 +62,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="label" htmlFor="pw">Пароль</label>
+            <label className="label" htmlFor="pw">{t('login_password')}</label>
             <input
               id="pw"
               type="password"
@@ -76,21 +78,21 @@ export default function LoginPage() {
           {error && <div className="text-danger-500 font-semibold">{error}</div>}
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>
-            {loading ? 'Входим...' : 'Войти'}
+            {loading ? t('loading') : t('login_submit')}
           </button>
 
           <div className="text-center text-ink-500">
-            Нет аккаунта?{' '}
+            {t('login_no_account')}{' '}
             <Link href="/register" className="text-primary-700 font-semibold hover:underline">
-              Зарегистрироваться
+              {t('login_register')}
             </Link>
           </div>
 
           <div className="border-t border-ink-300 pt-4 text-sm text-ink-500">
-            <div className="font-semibold mb-2 text-ink-700">Демо-доступ:</div>
-            <div>Пациент: patient@demo.kz / demo1234</div>
-            <div>Врач: doctor@demo.kz / demo1234</div>
-            <div>Родственник: family@demo.kz / demo1234</div>
+            <div className="font-semibold mb-2 text-ink-700">{t('login_demo')}</div>
+            <div>{t('role_patient')}: patient@demo.kz / demo1234</div>
+            <div>{t('role_doctor')}: doctor@demo.kz / demo1234</div>
+            <div>{t('role_family')}: family@demo.kz / demo1234</div>
           </div>
         </form>
       </div>

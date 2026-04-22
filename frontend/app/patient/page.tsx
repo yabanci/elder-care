@@ -6,23 +6,31 @@ import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { MetricEntryCard } from '@/components/MetricEntryCard';
 import { SummaryGrid } from '@/components/SummaryGrid';
-import { api, type Alert, type MedScheduleItem, type Metric, type MetricKind } from '@/lib/api';
+import { BMICard } from '@/components/BMICard';
+import { api, type Alert, type MedScheduleItem, type Metric, type MetricKind, type User } from '@/lib/api';
 import { METRIC_META } from '@/lib/metric-meta';
+import { useI18n } from '@/lib/i18n';
 import { AlertTriangle, Phone } from 'lucide-react';
 
 const QUICK_KINDS: MetricKind[] = ['pulse', 'bp_sys', 'glucose', 'temperature'];
 
 export default function PatientHome() {
-  const user = useAuthedUser(['patient']);
+  const authUser = useAuthedUser(['patient']);
+  const { t } = useI18n();
+  const [user, setUser] = useState<User | null>(null);
   const [summary, setSummary] = useState<Metric[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [schedule, setSchedule] = useState<MedScheduleItem[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authUser) setUser(authUser);
+  }, [authUser]);
+
+  useEffect(() => {
     if (!user) return;
     refresh();
-  }, [user]);
+  }, [user?.id]);
 
   async function refresh() {
     const [s, a, sch] = await Promise.all([
@@ -53,7 +61,8 @@ export default function PatientHome() {
   if (!user) return null;
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+  const greeting =
+    hour < 12 ? t('greeting_morning') : hour < 18 ? t('greeting_day') : t('greeting_evening');
   const unackAlerts = alerts.filter((a) => !a.acknowledged);
 
   return (
@@ -75,7 +84,7 @@ export default function PatientHome() {
               <AlertTriangle className="w-6 h-6 text-danger-500 shrink-0 mt-1" />
               <div>
                 <div className="font-bold text-danger-500">
-                  {unackAlerts.length} новых оповещений
+                  {unackAlerts.length} {t('alerts_new')}
                 </div>
                 <div className="text-sm text-ink-700">
                   {unackAlerts[0].reason} — {METRIC_META[unackAlerts[0].kind as MetricKind]?.label ?? unackAlerts[0].kind}
@@ -86,22 +95,26 @@ export default function PatientHome() {
         )}
 
         <section>
-          <h2 className="text-xl font-bold mb-3">Последние показатели</h2>
+          <h2 className="text-xl font-bold mb-3">{t('recent_metrics')}</h2>
           <SummaryGrid metrics={summary} />
         </section>
 
         <section>
+          <BMICard user={user} summary={summary} onUserChange={setUser} />
+        </section>
+
+        <section>
           <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-xl font-bold">Лекарства сегодня</h2>
-            <Link href="/patient/medications" className="text-primary-700 font-semibold">Все →</Link>
+            <h2 className="text-xl font-bold">{t('today_meds')}</h2>
+            <Link href="/patient/medications" className="text-primary-700 font-semibold">{t('show_all')}</Link>
           </div>
           {schedule.length === 0 ? (
-            <div className="card text-ink-500">На сегодня лекарств нет.</div>
+            <div className="card text-ink-500">{t('today_no_meds')}</div>
           ) : (
             <div className="space-y-2">
               {schedule.map((item) => {
-                const t = new Date(item.scheduled_at);
-                const hhmm = t.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                const scheduled = new Date(item.scheduled_at);
+                const hhmm = scheduled.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
                 const pending = item.status === 'pending' || item.status === 'missed';
                 return (
                   <div
@@ -121,10 +134,10 @@ export default function PatientHome() {
                         disabled={busy === item.medication_id + item.scheduled_at}
                         onClick={() => takeDose(item)}
                       >
-                        Принял ✓
+                        {t('take_dose')}
                       </button>
                     ) : (
-                      <div className="badge-ok">✓ Принято</div>
+                      <div className="badge-ok">{t('dose_taken')}</div>
                     )}
                   </div>
                 );
@@ -134,7 +147,7 @@ export default function PatientHome() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold mb-3">Быстрый ввод</h2>
+          <h2 className="text-xl font-bold mb-3">{t('quick_entry')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {QUICK_KINDS.map((k) => (
               <MetricEntryCard key={k} kind={k} onSaved={refresh} />
@@ -142,18 +155,16 @@ export default function PatientHome() {
           </div>
           <div className="mt-3 text-center">
             <Link href="/patient/metrics" className="text-primary-700 font-semibold">
-              Показать все метрики и графики →
+              {t('all_metrics')}
             </Link>
           </div>
         </section>
 
         {user.invite_code && (
           <section className="card bg-primary-50 border border-primary-500/20">
-            <div className="text-sm font-semibold text-primary-700 mb-1">Код приглашения</div>
+            <div className="text-sm font-semibold text-primary-700 mb-1">{t('invite_code_label')}</div>
             <div className="text-2xl font-bold tracking-wider">{user.invite_code}</div>
-            <div className="text-sm text-ink-500 mt-2">
-              Сообщите этот код врачу или родственнику, чтобы они могли видеть ваши показатели.
-            </div>
+            <div className="text-sm text-ink-500 mt-2">{t('invite_code_hint')}</div>
           </section>
         )}
       </div>

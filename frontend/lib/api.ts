@@ -53,6 +53,11 @@ export interface User {
   phone?: string;
   birth_date?: string;
   invite_code?: string;
+  height_cm?: number;
+  chronic_conditions?: string;
+  bp_norm?: string;
+  prescribed_meds?: string;
+  onboarded: boolean;
 }
 
 export interface Metric {
@@ -132,4 +137,16 @@ export interface Message {
   read_at?: string;
   created_at: string;
   sender_name?: string;
+}
+
+export type PlanType = 'doctor_visit' | 'take_med' | 'rest' | 'other';
+
+export interface Plan {
+  id: string;
+  patient_id: string;
+  day_of_week: number;
+  title: string;
+  plan_type: PlanType;
+  time_of_day?: string;
+  created_at: string;
 }

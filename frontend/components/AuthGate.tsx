@@ -1,13 +1,18 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ApiError, api, clearAuth, type Role, type User } from '@/lib/api';
 
-export function useAuthedUser(expectedRoles?: Role[]): User | null {
+export function useAuthedUser(
+  expectedRoles?: Role[],
+  opts?: { skipOnboardingRedirect?: boolean },
+): User | null {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const rolesKey = expectedRoles?.join(',') ?? '';
+  const skipOnboarding = opts?.skipOnboardingRedirect ?? false;
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -24,6 +29,15 @@ export function useAuthedUser(expectedRoles?: Role[]): User | null {
           router.replace(u.role === 'patient' ? '/patient' : '/care');
           return;
         }
+        if (
+          !skipOnboarding &&
+          u.role === 'patient' &&
+          !u.onboarded &&
+          pathname !== '/patient/onboarding'
+        ) {
+          router.replace('/patient/onboarding');
+          return;
+        }
         setUser(u);
         localStorage.setItem('user', JSON.stringify(u));
       })
@@ -37,7 +51,7 @@ export function useAuthedUser(expectedRoles?: Role[]): User | null {
     return () => {
       cancelled = true;
     };
-  }, [router, rolesKey]);
+  }, [router, rolesKey, pathname, skipOnboarding]);
 
   return user;
 }

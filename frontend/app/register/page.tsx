@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, setToken, type Role, type User } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -29,7 +31,11 @@ export default function RegisterPage() {
       });
       setToken(res.token);
       localStorage.setItem('user', JSON.stringify(res.user));
-      router.push(res.user.role === 'patient' ? '/patient' : '/care');
+      if (res.user.role === 'patient' && !res.user.onboarded) {
+        router.push('/patient/onboarding');
+      } else {
+        router.push(res.user.role === 'patient' ? '/patient' : '/care');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка регистрации');
     } finally {
@@ -45,15 +51,15 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary-50 to-white">
       <div className="w-full max-w-md">
         <form onSubmit={submit} className="card space-y-5">
-          <h1 className="text-2xl font-bold">Регистрация</h1>
+          <h1 className="text-2xl font-bold">{t('register_title')}</h1>
 
           <div>
-            <label className="label">Я —</label>
+            <label className="label">{t('register_iam')}</label>
             <div className="grid grid-cols-3 gap-2">
               {([
-                { v: 'patient', t: 'Пациент' },
-                { v: 'doctor', t: 'Врач' },
-                { v: 'family', t: 'Родственник' },
+                { v: 'patient', key: 'role_patient' },
+                { v: 'doctor', key: 'role_doctor' },
+                { v: 'family', key: 'role_family' },
               ] as const).map((r) => (
                 <button
                   key={r.v}
@@ -65,14 +71,14 @@ export default function RegisterPage() {
                       : 'border-ink-300 bg-white text-ink-700'
                   }`}
                 >
-                  {r.t}
+                  {t(r.key)}
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <label className="label" htmlFor="name">ФИО</label>
+            <label className="label" htmlFor="name">{t('register_fullname')}</label>
             <input
               id="name"
               className="field"
@@ -83,7 +89,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="label" htmlFor="email">Email</label>
+            <label className="label" htmlFor="email">{t('login_email')}</label>
             <input
               id="email"
               type="email"
@@ -96,7 +102,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="label" htmlFor="pw">Пароль (минимум 6 символов)</label>
+            <label className="label" htmlFor="pw">{t('register_password_hint')}</label>
             <input
               id="pw"
               type="password"
@@ -110,7 +116,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="label" htmlFor="phone">Телефон</label>
+            <label className="label" htmlFor="phone">{t('register_phone')}</label>
             <input
               id="phone"
               className="field"
@@ -122,7 +128,7 @@ export default function RegisterPage() {
 
           {form.role === 'patient' && (
             <div>
-              <label className="label" htmlFor="bd">Дата рождения</label>
+              <label className="label" htmlFor="bd">{t('register_birth')}</label>
               <input
                 id="bd"
                 type="date"
@@ -136,13 +142,13 @@ export default function RegisterPage() {
           {error && <div className="text-danger-500 font-semibold">{error}</div>}
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>
-            {loading ? 'Создаём...' : 'Создать аккаунт'}
+            {loading ? t('register_creating') : t('register_submit')}
           </button>
 
           <div className="text-center text-ink-500">
-            Уже есть аккаунт?{' '}
+            {t('register_have_account')}{' '}
             <Link href="/login" className="text-primary-700 font-semibold hover:underline">
-              Войти
+              {t('register_login')}
             </Link>
           </div>
         </form>

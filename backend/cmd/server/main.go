@@ -16,6 +16,7 @@ import (
 	"github.com/arsenozhetov/elder-care/backend/internal/medications"
 	"github.com/arsenozhetov/elder-care/backend/internal/messages"
 	"github.com/arsenozhetov/elder-care/backend/internal/metrics"
+	"github.com/arsenozhetov/elder-care/backend/internal/plans"
 )
 
 func main() {
@@ -45,6 +46,7 @@ func main() {
 	medSvc := medications.NewService(pool)
 	linksSvc := links.NewService(pool)
 	msgSvc := messages.NewService(pool)
+	plansSvc := plans.NewService(pool)
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
@@ -68,6 +70,7 @@ func main() {
 	api.Use(authSvc.Middleware())
 
 	api.GET("/me", authSvc.Me)
+	api.PATCH("/me", authSvc.UpdateMe)
 
 	// patient self-endpoints
 	api.POST("/metrics", metricsSvc.CreateForSelf)
@@ -93,6 +96,12 @@ func main() {
 	api.GET("/patients/:patientID/medications", medSvc.List)
 	api.GET("/patients/:patientID/medications/today", medSvc.Today)
 	api.POST("/patients/:patientID/metrics", metricsSvc.CreateForPatient)
+
+	// plans (weekly schedule)
+	api.GET("/plans", plansSvc.List)
+	api.POST("/plans", plansSvc.Create)
+	api.PATCH("/plans/:id", plansSvc.Update)
+	api.DELETE("/plans/:id", plansSvc.Delete)
 
 	// messaging
 	api.POST("/messages", msgSvc.Send)

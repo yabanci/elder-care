@@ -20,13 +20,18 @@ import (
 )
 
 type User struct {
-	ID         string     `json:"id"`
-	Email      string     `json:"email"`
-	FullName   string     `json:"full_name"`
-	Role       string     `json:"role"`
-	Phone      *string    `json:"phone,omitempty"`
-	BirthDate  *time.Time `json:"birth_date,omitempty"`
-	InviteCode *string    `json:"invite_code,omitempty"`
+	ID                string     `json:"id"`
+	Email             string     `json:"email"`
+	FullName          string     `json:"full_name"`
+	Role              string     `json:"role"`
+	Phone             *string    `json:"phone,omitempty"`
+	BirthDate         *time.Time `json:"birth_date,omitempty"`
+	InviteCode        *string    `json:"invite_code,omitempty"`
+	HeightCm          *int       `json:"height_cm,omitempty"`
+	ChronicConditions *string    `json:"chronic_conditions,omitempty"`
+	BPNorm            *string    `json:"bp_norm,omitempty"`
+	PrescribedMeds    *string    `json:"prescribed_meds,omitempty"`
+	Onboarded         bool       `json:"onboarded"`
 }
 
 type Service struct {
@@ -93,12 +98,15 @@ func (s *Service) Register(c *gin.Context) {
 	}
 
 	var u User
+	onboarded := req.Role != "patient"
 	err = s.pool.QueryRow(c.Request.Context(), `
-		INSERT INTO users(email, password_hash, full_name, role, phone, birth_date, invite_code)
-		VALUES($1,$2,$3,$4,$5,$6,$7)
-		RETURNING id, email, full_name, role, phone, birth_date, invite_code
-	`, strings.ToLower(req.Email), string(hash), req.FullName, req.Role, phone, birth, inviteCode).
-		Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode)
+		INSERT INTO users(email, password_hash, full_name, role, phone, birth_date, invite_code, onboarded)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+		RETURNING id, email, full_name, role, phone, birth_date, invite_code,
+		          height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded
+	`, strings.ToLower(req.Email), string(hash), req.FullName, req.Role, phone, birth, inviteCode, onboarded).
+		Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
+			&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded)
 	if err != nil {
 		if strings.Contains(err.Error(), "users_email_key") {
 			httpx.BadRequest(c, "email already registered")
@@ -128,10 +136,12 @@ func (s *Service) Login(c *gin.Context) {
 		hash string
 	)
 	err := s.pool.QueryRow(c.Request.Context(), `
-		SELECT id, email, full_name, role, phone, birth_date, invite_code, password_hash
+		SELECT id, email, full_name, role, phone, birth_date, invite_code,
+		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, password_hash
 		FROM users WHERE email=$1
 	`, strings.ToLower(req.Email)).
-		Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode, &hash)
+		Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
+			&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &hash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			httpx.Unauthorized(c, "invalid credentials")
@@ -167,10 +177,49 @@ func (s *Service) Me(c *gin.Context) {
 func (s *Service) GetUser(ctx context.Context, id string) (User, error) {
 	var u User
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, email, full_name, role, phone, birth_date, invite_code
+		SELECT id, email, full_name, role, phone, birth_date, invite_code,
+		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded
 		FROM users WHERE id=$1
-	`, id).Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode)
+	`, id).Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
+		&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded)
 	return u, err
+}
+
+type updateProfileReq struct {
+	HeightCm          *int    `json:"height_cm"`
+	ChronicConditions *string `json:"chronic_conditions"`
+	BPNorm            *string `json:"bp_norm"`
+	PrescribedMeds    *string `json:"prescribed_meds"`
+	Onboarded         *bool   `json:"onboarded"`
+}
+
+func (s *Service) UpdateMe(c *gin.Context) {
+	var req updateProfileReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.BadRequest(c, err.Error())
+		return
+	}
+	userID := c.GetString(CtxUserID)
+	_, err := s.pool.Exec(c.Request.Context(), `
+		UPDATE users SET
+			height_cm          = COALESCE($2, height_cm),
+			chronic_conditions = COALESCE($3, chronic_conditions),
+			bp_norm            = COALESCE($4, bp_norm),
+			prescribed_meds    = COALESCE($5, prescribed_meds),
+			onboarded          = COALESCE($6, onboarded),
+			updated_at         = now()
+		WHERE id=$1
+	`, userID, req.HeightCm, req.ChronicConditions, req.BPNorm, req.PrescribedMeds, req.Onboarded)
+	if err != nil {
+		httpx.Internal(c, err)
+		return
+	}
+	u, err := s.GetUser(c.Request.Context(), userID)
+	if err != nil {
+		httpx.HandleDBError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, u)
 }
 
 func (s *Service) issueToken(userID, role string) (string, error) {
