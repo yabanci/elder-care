@@ -2,27 +2,17 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { useAuthedUser } from '@/components/AuthGate';
 import { Splash } from '@/components/Splash';
 
 export default function RootRedirect() {
   const router = useRouter();
+  const user = useAuthedUser();
+
   useEffect(() => {
-    const redirect = () => {
-      const userRaw = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-      if (!userRaw) {
-        router.replace('/login');
-        return;
-      }
-      try {
-        const user = JSON.parse(userRaw);
-        router.replace(user.role === 'patient' ? '/patient' : '/care');
-      } catch {
-        router.replace('/login');
-      }
-    };
-    const t = setTimeout(redirect, 1200);
-    return () => clearTimeout(t);
-  }, [router]);
+    if (!user) return;
+    router.replace(user.role === 'patient' ? '/patient' : '/care');
+  }, [user, router]);
 
   return <Splash />;
 }
