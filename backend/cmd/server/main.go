@@ -9,14 +9,14 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
-	"github.com/arsenozhetov/elder-care/backend/internal/auth"
-	"github.com/arsenozhetov/elder-care/backend/internal/config"
-	"github.com/arsenozhetov/elder-care/backend/internal/db"
-	"github.com/arsenozhetov/elder-care/backend/internal/links"
-	"github.com/arsenozhetov/elder-care/backend/internal/medications"
-	"github.com/arsenozhetov/elder-care/backend/internal/messages"
-	"github.com/arsenozhetov/elder-care/backend/internal/metrics"
-	"github.com/arsenozhetov/elder-care/backend/internal/plans"
+	"eldercare/backend/internal/auth"
+	"eldercare/backend/internal/config"
+	"eldercare/backend/internal/db"
+	"eldercare/backend/internal/links"
+	"eldercare/backend/internal/medications"
+	"eldercare/backend/internal/messages"
+	"eldercare/backend/internal/metrics"
+	"eldercare/backend/internal/plans"
 )
 
 func main() {

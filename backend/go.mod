@@ -1,4 +1,4 @@
-module github.com/arsenozhetov/elder-care/backend
+module eldercare/backend
 
 go 1.25
 

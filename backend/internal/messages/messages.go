@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/arsenozhetov/elder-care/backend/internal/auth"
-	"github.com/arsenozhetov/elder-care/backend/internal/httpx"
+	"eldercare/backend/internal/auth"
+	"eldercare/backend/internal/httpx"
 )
 
 type Message struct {

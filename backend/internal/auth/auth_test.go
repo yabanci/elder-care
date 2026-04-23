@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/arsenozhetov/elder-care/backend/internal/auth"
-	"github.com/arsenozhetov/elder-care/backend/internal/testutil"
+	"eldercare/backend/internal/auth"
+	"eldercare/backend/internal/testutil"
 )
 
 const testSecret = "test_secret_please_dont_use_in_prod"

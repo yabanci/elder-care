@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/arsenozhetov/elder-care/backend/internal/db"
+	"eldercare/backend/internal/db"
 )
 
 // NewPool returns a pgxpool connected to TEST_DATABASE_URL, applies migrations,

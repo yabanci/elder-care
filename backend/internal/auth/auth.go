@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/arsenozhetov/elder-care/backend/internal/httpx"
+	"eldercare/backend/internal/httpx"
 )
 
 type User struct {

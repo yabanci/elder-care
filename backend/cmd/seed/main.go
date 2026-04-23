@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/arsenozhetov/elder-care/backend/internal/config"
-	"github.com/arsenozhetov/elder-care/backend/internal/db"
+	"eldercare/backend/internal/config"
+	"eldercare/backend/internal/db"
 )
 
 func main() {
