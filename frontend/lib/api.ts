@@ -80,12 +80,26 @@ export type MetricKind =
   | 'weight'
   | 'spo2';
 
+export type AlertReasonCode =
+  | 'safety_below_min'
+  | 'safety_above_max'
+  | 'safety_warn_low'
+  | 'safety_warn_high'
+  | 'baseline_warn_z2'
+  | 'baseline_crit_z3'
+  | 'condition_warn'
+  | 'condition_crit'
+  | 'cold_start'
+  | 'legacy';
+
 export interface Alert {
   id: string;
   patient_id: string;
   metric_id?: string;
   severity: 'info' | 'warning' | 'critical';
   reason: string;
+  reason_code: AlertReasonCode;
+  algorithm_version: string;
   kind: string;
   value?: number;
   baseline_mean?: number;

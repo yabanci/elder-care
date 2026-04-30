@@ -170,6 +170,17 @@ const DICT: Record<Lang, Record<string, string>> = {
     care_patient_metrics: 'Показатели',
     care_patient_alerts: 'Оповещения',
     care_patient_meds: 'Лекарства',
+    // alert reason codes (v2 algorithm)
+    reason_safety_below_min: 'Значение ниже клинически безопасного минимума',
+    reason_safety_above_max: 'Значение выше клинически безопасного максимума',
+    reason_safety_warn_low: 'Значение ниже нормы',
+    reason_safety_warn_high: 'Значение выше нормы',
+    reason_baseline_warn_z2: 'Отклонение от вашей личной нормы',
+    reason_baseline_crit_z3: 'Значительное отклонение от вашей личной нормы',
+    reason_condition_warn: 'Значение выходит за границы для вашего состояния',
+    reason_condition_crit: 'Критическое отклонение для вашего состояния',
+    reason_cold_start: 'Накапливаем данные для персональной нормы',
+    reason_legacy: 'Старый алгоритм',
   },
   kk: {
     app_name: 'ElderCare',
@@ -315,6 +326,17 @@ const DICT: Record<Lang, Record<string, string>> = {
     care_patient_metrics: 'Көрсеткіштер',
     care_patient_alerts: 'Хабарлар',
     care_patient_meds: 'Дәрілер',
+    // alert reason codes (v2 algorithm)
+    reason_safety_below_min: 'Мән клиникалық қауіпсіз минимумнан төмен',
+    reason_safety_above_max: 'Мән клиникалық қауіпсіз максимумнан жоғары',
+    reason_safety_warn_low: 'Мән қалыптан төмен',
+    reason_safety_warn_high: 'Мән қалыптан жоғары',
+    reason_baseline_warn_z2: 'Сіздің жеке нормаңыздан ауытқу',
+    reason_baseline_crit_z3: 'Сіздің жеке нормаңыздан айтарлықтай ауытқу',
+    reason_condition_warn: 'Мән сіздің жағдайыңыз үшін шектен тыс',
+    reason_condition_crit: 'Сіздің жағдайыңыз үшін критикалық ауытқу',
+    reason_cold_start: 'Жеке норма үшін деректер жинау',
+    reason_legacy: 'Ескі алгоритм',
   },
   en: {
     app_name: 'ElderCare',
@@ -460,6 +482,17 @@ const DICT: Record<Lang, Record<string, string>> = {
     care_patient_metrics: 'Metrics',
     care_patient_alerts: 'Alerts',
     care_patient_meds: 'Medications',
+    // alert reason codes (v2 algorithm)
+    reason_safety_below_min: 'Value below clinically safe minimum',
+    reason_safety_above_max: 'Value above clinically safe maximum',
+    reason_safety_warn_low: 'Value below normal range',
+    reason_safety_warn_high: 'Value above normal range',
+    reason_baseline_warn_z2: 'Deviation from your personal baseline',
+    reason_baseline_crit_z3: 'Significant deviation from your personal baseline',
+    reason_condition_warn: 'Value outside the range for your condition',
+    reason_condition_crit: 'Critical deviation for your condition',
+    reason_cold_start: 'Gathering data for personal baseline',
+    reason_legacy: 'Legacy algorithm',
   },
 };
 

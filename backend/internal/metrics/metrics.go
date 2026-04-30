@@ -2,13 +2,16 @@ package metrics
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"eldercare/backend/internal/auth"
+	"eldercare/backend/internal/baseline"
 	"eldercare/backend/internal/httpx"
 )
 
@@ -23,17 +26,19 @@ type Metric struct {
 }
 
 type Alert struct {
-	ID           string    `json:"id"`
-	PatientID    string    `json:"patient_id"`
-	MetricID     *string   `json:"metric_id,omitempty"`
-	Severity     string    `json:"severity"`
-	Reason       string    `json:"reason"`
-	Kind         string    `json:"kind"`
-	Value        *float64  `json:"value,omitempty"`
-	BaselineMean *float64  `json:"baseline_mean,omitempty"`
-	BaselineStd  *float64  `json:"baseline_std,omitempty"`
-	Acknowledged bool      `json:"acknowledged"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID               string    `json:"id"`
+	PatientID        string    `json:"patient_id"`
+	MetricID         *string   `json:"metric_id,omitempty"`
+	Severity         string    `json:"severity"`
+	Reason           string    `json:"reason"`
+	ReasonCode       string    `json:"reason_code"`
+	AlgorithmVersion string    `json:"algorithm_version"`
+	Kind             string    `json:"kind"`
+	Value            *float64  `json:"value,omitempty"`
+	BaselineMean     *float64  `json:"baseline_mean,omitempty"`
+	BaselineStd      *float64  `json:"baseline_std,omitempty"`
+	Acknowledged     bool      `json:"acknowledged"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type Service struct {
@@ -107,47 +112,129 @@ func (s *Service) create(c *gin.Context, patientID string) {
 	c.JSON(http.StatusOK, gin.H{"metric": m, "alert": alert})
 }
 
+// runBaseline drives the v2 baseline pipeline: loads the patient's chronic
+// conditions, fetches the recent same-kind reading history, runs
+// baseline.Analyze, persists an algorithm_runs row (always) and an alerts
+// row (only when severity != normal). Returns the new alert if one was
+// created, or nil otherwise.
 func (s *Service) runBaseline(ctx context.Context, m Metric) (*Alert, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT value FROM health_metrics
-		WHERE patient_id=$1 AND kind=$2 AND id<>$3
-		ORDER BY measured_at DESC
-		LIMIT 30
-	`, m.PatientID, m.Kind, m.ID)
+	chronic, err := s.fetchChronicConditions(ctx, m.PatientID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	profile := baseline.ParseProfile(chronic)
 
-	var history []float64
-	for rows.Next() {
-		var v float64
-		if err := rows.Scan(&v); err != nil {
-			return nil, err
-		}
-		history = append(history, v)
+	history, err := s.fetchHistory(ctx, m.PatientID, m.Kind, m.ID)
+	if err != nil {
+		return nil, err
 	}
 
-	res := Analyze(m.Kind, m.Value, history)
-	if res.Severity == "normal" {
+	res := baseline.Analyze(baseline.Input{
+		Kind:    m.Kind,
+		Value:   m.Value,
+		History: history,
+		Profile: profile,
+		Now:     m.MeasuredAt,
+	})
+
+	if err := s.persistRun(ctx, m, res); err != nil {
+		return nil, err
+	}
+
+	if res.Severity == baseline.SeverityNormal {
 		return nil, nil
 	}
 
-	var a Alert
-	var meanVal, stdVal interface{}
+	var meanVal, stdVal any
 	if res.UsedHistory {
 		meanVal, stdVal = res.Mean, res.Std
 	}
+	var a Alert
 	err = s.pool.QueryRow(ctx, `
-		INSERT INTO alerts(patient_id, metric_id, severity, reason, kind, value, baseline_mean, baseline_std)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-		RETURNING id, patient_id, metric_id, severity, reason, kind, value, baseline_mean, baseline_std, acknowledged, created_at
-	`, m.PatientID, m.ID, res.Severity, res.Reason, m.Kind, m.Value, meanVal, stdVal).
-		Scan(&a.ID, &a.PatientID, &a.MetricID, &a.Severity, &a.Reason, &a.Kind, &a.Value, &a.BaselineMean, &a.BaselineStd, &a.Acknowledged, &a.CreatedAt)
+		INSERT INTO alerts(
+			patient_id, metric_id, severity, reason, reason_code,
+			algorithm_version, kind, value, baseline_mean, baseline_std
+		)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		RETURNING id, patient_id, metric_id, severity, reason, reason_code,
+		          algorithm_version, kind, value, baseline_mean, baseline_std,
+		          acknowledged, created_at
+	`, m.PatientID, m.ID, res.Severity, res.ReasonCode, res.ReasonCode,
+		res.AlgorithmVersion, m.Kind, m.Value, meanVal, stdVal).
+		Scan(&a.ID, &a.PatientID, &a.MetricID, &a.Severity, &a.Reason, &a.ReasonCode,
+			&a.AlgorithmVersion, &a.Kind, &a.Value, &a.BaselineMean, &a.BaselineStd,
+			&a.Acknowledged, &a.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return &a, nil
+}
+
+// fetchChronicConditions returns the patient's chronic_conditions text, or
+// "" if unset. Used to derive the condition profile.
+func (s *Service) fetchChronicConditions(ctx context.Context, patientID string) (string, error) {
+	var text *string
+	err := s.pool.QueryRow(ctx,
+		`SELECT chronic_conditions FROM users WHERE id=$1`, patientID).Scan(&text)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	if text == nil {
+		return "", nil
+	}
+	return *text, nil
+}
+
+// fetchHistory returns the patient's recent same-kind readings for
+// baseline estimation. We fetch a generous window (last 90 days, capped
+// 200 rows) and let baseline.WindowFilter trim down inside Analyze.
+func (s *Service) fetchHistory(ctx context.Context, patientID, kind, excludeID string) ([]baseline.Reading, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT value, measured_at FROM health_metrics
+		WHERE patient_id=$1 AND kind=$2 AND id<>$3
+		  AND measured_at >= now() - interval '90 days'
+		ORDER BY measured_at DESC
+		LIMIT 200
+	`, patientID, kind, excludeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var history []baseline.Reading
+	for rows.Next() {
+		var r baseline.Reading
+		if err := rows.Scan(&r.Value, &r.MeasuredAt); err != nil {
+			return nil, err
+		}
+		history = append(history, r)
+	}
+	return history, nil
+}
+
+// persistRun records every algorithm invocation, alert or not, into
+// algorithm_runs. Useful for offline replay, defense telemetry, and as a
+// safety net so we always know what the algorithm decided for any given
+// reading.
+func (s *Service) persistRun(ctx context.Context, m Metric, res baseline.Result) error {
+	var meanVal, stdVal, zVal any
+	if res.UsedHistory {
+		meanVal, stdVal, zVal = res.Mean, res.Std, res.ZScore
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO algorithm_runs(
+			patient_id, metric_id, kind, value,
+			estimator, mean_used, std_used, z_score,
+			severity, reason_code, used_history, history_size, algorithm_version
+		)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+	`, m.PatientID, m.ID, m.Kind, m.Value,
+		string(res.Estimator), meanVal, stdVal, zVal,
+		res.Severity, res.ReasonCode, res.UsedHistory, res.HistorySize, res.AlgorithmVersion,
+	)
+	return err
 }
 
 func (s *Service) List(c *gin.Context) {
@@ -203,7 +290,9 @@ func (s *Service) ListAlerts(c *gin.Context) {
 		return
 	}
 	rows, err := s.pool.Query(c.Request.Context(), `
-		SELECT id, patient_id, metric_id, severity, reason, kind, value, baseline_mean, baseline_std, acknowledged, created_at
+		SELECT id, patient_id, metric_id, severity, reason, reason_code,
+		       algorithm_version, kind, value, baseline_mean, baseline_std,
+		       acknowledged, created_at
 		FROM alerts WHERE patient_id=$1
 		ORDER BY created_at DESC LIMIT 50
 	`, patientID)
@@ -215,7 +304,9 @@ func (s *Service) ListAlerts(c *gin.Context) {
 	out := []Alert{}
 	for rows.Next() {
 		var a Alert
-		if err := rows.Scan(&a.ID, &a.PatientID, &a.MetricID, &a.Severity, &a.Reason, &a.Kind, &a.Value, &a.BaselineMean, &a.BaselineStd, &a.Acknowledged, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.PatientID, &a.MetricID, &a.Severity, &a.Reason,
+			&a.ReasonCode, &a.AlgorithmVersion, &a.Kind, &a.Value,
+			&a.BaselineMean, &a.BaselineStd, &a.Acknowledged, &a.CreatedAt); err != nil {
 			httpx.Internal(c, err)
 			return
 		}
