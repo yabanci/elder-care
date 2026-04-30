@@ -81,8 +81,6 @@ func (s *Service) Register(c *gin.Context) {
 		return
 	}
 
-	inviteCode := generateInviteCode()
-
 	var birth interface{}
 	if req.BirthDate != "" {
 		t, err := time.Parse("2006-01-02", req.BirthDate)
@@ -98,22 +96,45 @@ func (s *Service) Register(c *gin.Context) {
 		phone = req.Phone
 	}
 
-	var u User
 	onboarded := req.Role != "patient"
-	err = s.pool.QueryRow(c.Request.Context(), `
-		INSERT INTO users(email, password_hash, full_name, role, phone, birth_date, invite_code, onboarded)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-		RETURNING id, email, full_name, role, phone, birth_date, invite_code,
-		          height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang
-	`, strings.ToLower(req.Email), string(hash), req.FullName, req.Role, phone, birth, inviteCode, onboarded).
-		Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
-			&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang)
-	if err != nil {
+
+	// Invite codes are 8 hex chars (~4B combos). Collisions are unlikely but
+	// possible; retry up to 5 times before giving up so a register isn't
+	// rejected for a transient unique-violation. Email collisions are
+	// surfaced as 400 on the first attempt.
+	var u User
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		inviteCode, err := generateInviteCode()
+		if err != nil {
+			httpx.Internal(c, fmt.Errorf("generate invite code: %w", err))
+			return
+		}
+		err = s.pool.QueryRow(c.Request.Context(), `
+			INSERT INTO users(email, password_hash, full_name, role, phone, birth_date, invite_code, onboarded)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+			RETURNING id, email, full_name, role, phone, birth_date, invite_code,
+			          height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang
+		`, strings.ToLower(req.Email), string(hash), req.FullName, req.Role, phone, birth, inviteCode, onboarded).
+			Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
+				&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang)
+		if err == nil {
+			lastErr = nil
+			break
+		}
+		lastErr = err
 		if strings.Contains(err.Error(), "users_email_key") {
 			httpx.BadRequest(c, "email already registered")
 			return
 		}
-		httpx.Internal(c, err)
+		if !strings.Contains(err.Error(), "users_invite_code_key") {
+			httpx.Internal(c, err)
+			return
+		}
+		// Invite-code collision: retry with a fresh code.
+	}
+	if lastErr != nil {
+		httpx.Internal(c, fmt.Errorf("invite code retries exhausted: %w", lastErr))
 		return
 	}
 
@@ -293,8 +314,14 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 	}
 }
 
-func generateInviteCode() string {
+// generateInviteCode returns an 8-char uppercase hex code from 4 bytes of
+// crypto/rand. Errors from the random source are surfaced — silently
+// returning a zero-byte code would degrade to a single deterministic
+// invite that all newcomers would collide on.
+func generateInviteCode() (string, error) {
 	b := make([]byte, 4)
-	_, _ = rand.Read(b)
-	return strings.ToUpper(hex.EncodeToString(b))
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("crypto/rand read: %w", err)
+	}
+	return strings.ToUpper(hex.EncodeToString(b)), nil
 }
