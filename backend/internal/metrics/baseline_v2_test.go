@@ -90,14 +90,15 @@ func TestBaselineV2_ColdStartProducesNoAlerts(t *testing.T) {
 	}
 }
 
-// TestBaselineV2_ConditionProfileNarrowsBPWarn proves Claim C: a hypertensive
-// patient is alerted at bp_sys=142 while a default-profile patient is not.
-func TestBaselineV2_ConditionProfileNarrowsBPWarn(t *testing.T) {
+// TestBaselineV2_ConditionProfileSuppressesNuisanceAlertsForChronic proves
+// Claim C: a hypertensive patient does NOT get a nuisance alert at
+// bp_sys=155 (their normal-for-them range), while a default-profile patient
+// does (above 150 warn-high). The personal-baseline layer remains
+// available to catch each patient's individual deviations.
+func TestBaselineV2_ConditionProfileSuppressesNuisanceAlertsForChronic(t *testing.T) {
 	r := setupWithProfile(t)
 
-	// Patient A: default profile.
 	defaultTok := register(t, r, "p-default@test.kz")
-	// Patient B: hypertension.
 	hyperTok := register(t, r, "p-hyper@test.kz")
 	w := testutil.DoJSON(t, r, "PATCH", "/api/me", hyperTok, map[string]any{
 		"chronic_conditions": "артериальная гипертензия",
@@ -106,12 +107,12 @@ func TestBaselineV2_ConditionProfileNarrowsBPWarn(t *testing.T) {
 		t.Fatalf("set chronic: %d %s", w.Code, w.Body.String())
 	}
 
-	// Both: 142 mmHg systolic, no history → cold-start path; only the
-	// safety/warn-band layer sees it. Default warn high = 150, hypertension
-	// narrows to 140 → only patient B should fire warning.
+	// Both: 155 mmHg systolic, no history → cold-start path; only the
+	// safety/warn-band layer sees it. Default warn high = 150 → patient A
+	// fires; hypertension widens to 170 → patient B does not.
 	for _, tok := range []string{defaultTok, hyperTok} {
 		w := testutil.DoJSON(t, r, "POST", "/api/metrics", tok, map[string]any{
-			"kind": "bp_sys", "value": 142,
+			"kind": "bp_sys", "value": 155,
 		})
 		if w.Code != http.StatusOK {
 			t.Fatalf("create: %d %s", w.Code, w.Body.String())
@@ -121,22 +122,15 @@ func TestBaselineV2_ConditionProfileNarrowsBPWarn(t *testing.T) {
 	w = testutil.DoJSON(t, r, "GET", "/api/alerts", defaultTok, nil)
 	var defaultAlerts []map[string]any
 	testutil.Decode(t, w, &defaultAlerts)
-	if len(defaultAlerts) != 0 {
-		t.Errorf("default profile: bp_sys=142 should not alert, got %d", len(defaultAlerts))
+	if len(defaultAlerts) != 1 {
+		t.Errorf("default profile: bp_sys=155 SHOULD alert, got %d", len(defaultAlerts))
 	}
 
 	w = testutil.DoJSON(t, r, "GET", "/api/alerts", hyperTok, nil)
 	var hyperAlerts []map[string]any
 	testutil.Decode(t, w, &hyperAlerts)
-	if len(hyperAlerts) != 1 {
-		t.Fatalf("hypertensive profile: bp_sys=142 should alert, got %d: %s",
+	if len(hyperAlerts) != 0 {
+		t.Errorf("hypertensive profile: bp_sys=155 should NOT alert (widened to 170), got %d: %s",
 			len(hyperAlerts), w.Body.String())
-	}
-	if hyperAlerts[0]["severity"] != baseline.SeverityWarning {
-		t.Errorf("severity: got %v want warning", hyperAlerts[0]["severity"])
-	}
-	if hyperAlerts[0]["reason_code"] != baseline.ReasonSafetyWarnHigh {
-		t.Errorf("reason_code: got %v want %v",
-			hyperAlerts[0]["reason_code"], baseline.ReasonSafetyWarnHigh)
 	}
 }

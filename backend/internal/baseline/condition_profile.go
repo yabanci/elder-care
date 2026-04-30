@@ -56,28 +56,35 @@ var defaultThresholds = map[string]Thresholds{
 	"weight":      {},
 }
 
-// profileOverrides describes the narrower bounds applied when a specific
-// chronic-condition profile is active. Bounds compose by taking the more
-// sensitive direction (min for high-side warnings, max for low-side).
+// profileOverrides describes the **widened** bounds for chronic-condition
+// patients. Rationale: chronic patients have shifted baselines (hypertensive
+// runs higher BP, COPD patient runs lower SpO2, T2D runs higher glucose).
+// Generic population thresholds nuisance-alert on values that are normal for
+// these patients. Widening the safety/warn bands suppresses those nuisance
+// alerts; the personal-baseline z-score still catches each patient's own
+// individual deviations.
+//
+// Composition: when multiple profiles match, take the **more permissive**
+// bound on each side (max for high, min for low) — the patient's risk
+// envelope is bounded by the most-tolerant matching profile.
 var profileOverrides = map[string]map[string]Thresholds{
 	"hypertension": {
-		"bp_sys": {WarnHigh: f(140)},
-		"bp_dia": {WarnHigh: f(90)},
-		"pulse":  {WarnHigh: f(105)},
+		"bp_sys": {CriticalHigh: f(200), WarnHigh: f(170)},
+		"bp_dia": {WarnHigh: f(100)},
+		"pulse":  {WarnHigh: f(115)},
 	},
 	"t2d": {
-		"glucose": {WarnHigh: f(9.0), WarnLow: f(4.5)},
-		"bp_sys":  {WarnHigh: f(145)},
+		"glucose": {CriticalHigh: f(18.0), WarnHigh: f(12.0), WarnLow: f(3.5)},
 	},
 	"copd": {
-		"spo2":  {WarnLow: f(95)},
-		"pulse": {WarnHigh: f(115)},
+		"spo2":  {CriticalLow: f(86), WarnLow: f(90)},
 	},
 }
 
 // ThresholdsFor returns the effective thresholds for a metric given a
 // patient's condition profile. Multiple matching profiles compose by
-// taking the narrower bound (more sensitive).
+// taking the more **permissive** bound on each side (the union of the
+// patient's tolerated ranges).
 func ThresholdsFor(kind string, prof Profile) Thresholds {
 	base, ok := defaultThresholds[kind]
 	if !ok {
@@ -90,10 +97,10 @@ func ThresholdsFor(kind string, prof Profile) Thresholds {
 		if !ok {
 			return
 		}
-		out.CriticalHigh = minPtr(out.CriticalHigh, ov.CriticalHigh)
-		out.CriticalLow = maxPtr(out.CriticalLow, ov.CriticalLow)
-		out.WarnHigh = minPtr(out.WarnHigh, ov.WarnHigh)
-		out.WarnLow = maxPtr(out.WarnLow, ov.WarnLow)
+		out.CriticalHigh = maxPtr(out.CriticalHigh, ov.CriticalHigh)
+		out.CriticalLow = minPtr(out.CriticalLow, ov.CriticalLow)
+		out.WarnHigh = maxPtr(out.WarnHigh, ov.WarnHigh)
+		out.WarnLow = minPtr(out.WarnLow, ov.WarnLow)
 	}
 	if prof.Hypertension {
 		apply("hypertension")

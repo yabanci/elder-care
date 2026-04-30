@@ -89,16 +89,19 @@ The current v1 algorithm activates personal baseline as soon as 5 readings exist
 | `copd` | `хобл`, `copd`, `өкпенің созылмалы` |
 | `none` | default |
 
-A patient may match multiple profiles; thresholds compose by taking the **narrower** bound per metric (more sensitive). Initial threshold table (tunable):
+A patient may match multiple profiles; thresholds compose by taking the **more permissive** bound per metric (max for highs, min for lows) — the patient's tolerated envelope is the union of their matching profiles. Rationale: chronic patients have legitimately shifted baselines; widening the static safety/warn bands suppresses nuisance alerts. The personal-baseline z-score still catches each patient's own deviations. Critical-side bounds are widened more conservatively than warn bounds. Initial threshold table (tunable):
 
 | Metric | Default warn high | hypertension | t2d | copd |
 |---|---|---|---|---|
-| `bp_sys` warn high | 150 | 140 | 145 | — |
-| `bp_dia` warn high | 95 | 90 | — | — |
-| `glucose` warn high | 10.0 | — | 9.0 | — |
-| `glucose` warn low | 4.0 | — | 4.5 | — |
-| `spo2` warn low | 93 | — | — | 95 |
-| `pulse` warn high | 110 | 105 | — | 115 |
+| `bp_sys` warn high | 150 | 170 | — | — |
+| `bp_sys` critical high | 180 | 200 | — | — |
+| `bp_dia` warn high | 95 | 100 | — | — |
+| `glucose` warn high | 10.0 | — | 12.0 | — |
+| `glucose` warn low | 4.0 | — | 3.5 | — |
+| `glucose` critical high | 15.0 | — | 18.0 | — |
+| `spo2` warn low | 93 | — | — | 90 |
+| `spo2` critical low | 88 | — | — | 86 |
+| `pulse` warn high | 110 | 115 | — | — |
 
 ### 3.5 Schema changes (additive, reversible)
 
