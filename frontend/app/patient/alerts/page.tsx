@@ -7,6 +7,20 @@ import { api, type Alert, type MetricKind } from '@/lib/api';
 import { METRIC_META, formatValue } from '@/lib/metric-meta';
 import { useI18n } from '@/lib/i18n';
 
+// localizedReason returns the i18n-mapped reason string for an alert,
+// falling back to the legacy `reason` field for pre-v2 alerts whose
+// reason_code is "legacy" (or unknown to the dictionary).
+function localizedReason(t: (k: string) => string, a: Alert): string {
+  if (!a.reason_code || a.reason_code === 'legacy') {
+    return a.reason || t('reason_legacy');
+  }
+  const key = `reason_${a.reason_code}`;
+  const localized = t(key);
+  // useI18n's t() returns the key itself when no translation exists.
+  if (localized === key) return a.reason || a.reason_code;
+  return localized;
+}
+
 export default function AlertsPage() {
   const user = useAuthedUser(['patient']);
   const { t, lang } = useI18n();
@@ -58,7 +72,7 @@ export default function AlertsPage() {
                     </span>
                     {a.acknowledged && <span className="badge-ok">✓</span>}
                   </div>
-                  <div className="text-ink-700 mt-1">{a.reason}</div>
+                  <div className="text-ink-700 mt-1">{localizedReason(t, a)}</div>
                   {a.value != null && (
                     <div className="text-sm text-ink-500 mt-1">
                       {t('alert_value')}: <b>{formatValue(a.kind as MetricKind, a.value)} {meta?.unit}</b>
