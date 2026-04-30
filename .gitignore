@@ -8,6 +8,7 @@ build/
 .DS_Store
 backend/server
 backend/seed
+backend/_bin/
 .vscode/
 .idea/
 frontend/tsconfig.tsbuildinfo
