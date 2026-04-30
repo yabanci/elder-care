@@ -66,40 +66,41 @@ func TestThresholdsFor_DefaultsWhenNoProfile(t *testing.T) {
 	}
 }
 
-func TestThresholdsFor_HypertensionNarrowsBPSysWarn(t *testing.T) {
+func TestThresholdsFor_HypertensionWidensBPSysWarn(t *testing.T) {
 	prof := Profile{Hypertension: true}
 	th := ThresholdsFor("bp_sys", prof)
-	if th.WarnHigh == nil || *th.WarnHigh != 140 {
-		t.Errorf("hypertension bp_sys WarnHigh: got %v want 140", th.WarnHigh)
+	if th.WarnHigh == nil || *th.WarnHigh != 170 {
+		t.Errorf("hypertension bp_sys WarnHigh: got %v want 170", th.WarnHigh)
 	}
 }
 
-func TestThresholdsFor_T2DTightensGlucoseBand(t *testing.T) {
+func TestThresholdsFor_T2DLoosensGlucoseBand(t *testing.T) {
 	prof := Profile{T2D: true}
 	th := ThresholdsFor("glucose", prof)
-	if th.WarnHigh == nil || *th.WarnHigh != 9.0 {
-		t.Errorf("t2d glucose WarnHigh: got %v want 9.0", th.WarnHigh)
+	if th.WarnHigh == nil || *th.WarnHigh != 12.0 {
+		t.Errorf("t2d glucose WarnHigh: got %v want 12.0", th.WarnHigh)
 	}
-	if th.WarnLow == nil || *th.WarnLow != 4.5 {
-		t.Errorf("t2d glucose WarnLow: got %v want 4.5", th.WarnLow)
+	if th.WarnLow == nil || *th.WarnLow != 3.5 {
+		t.Errorf("t2d glucose WarnLow: got %v want 3.5", th.WarnLow)
 	}
 }
 
-func TestThresholdsFor_COPDTightensSpO2(t *testing.T) {
+func TestThresholdsFor_COPDLoosensSpO2(t *testing.T) {
 	prof := Profile{COPD: true}
 	th := ThresholdsFor("spo2", prof)
-	if th.WarnLow == nil || *th.WarnLow != 95 {
-		t.Errorf("copd spo2 WarnLow: got %v want 95", th.WarnLow)
+	if th.WarnLow == nil || *th.WarnLow != 90 {
+		t.Errorf("copd spo2 WarnLow: got %v want 90", th.WarnLow)
 	}
 }
 
-func TestThresholdsFor_MultiProfileTakesNarrowerBound(t *testing.T) {
-	// Both hypertension (BP narrow) and T2D (glucose narrow) — each profile
-	// only narrows its own metric; bp_sys keeps hypertension's 140.
+func TestThresholdsFor_MultiProfileTakesWiderBound(t *testing.T) {
+	// Both hypertension (widens BP) and T2D (widens glucose). bp_sys
+	// reflects hypertension's 170; glucose stays at default since T2D
+	// only overrides glucose.
 	prof := Profile{Hypertension: true, T2D: true}
 	th := ThresholdsFor("bp_sys", prof)
-	if th.WarnHigh == nil || *th.WarnHigh != 140 {
-		t.Errorf("expected hypertension narrow on bp_sys, got %v", th.WarnHigh)
+	if th.WarnHigh == nil || *th.WarnHigh != 170 {
+		t.Errorf("expected hypertension widen on bp_sys, got %v", th.WarnHigh)
 	}
 }
 

@@ -82,15 +82,14 @@ func TestAnalyze_PersonalBaselineQuietWhenStable(t *testing.T) {
 	}
 }
 
-func TestAnalyze_ConditionProfileFiresEarlierThanDefault(t *testing.T) {
+func TestAnalyze_ConditionProfileWidensSafetyForChronic(t *testing.T) {
 	now := time.Date(2026, 5, 1, 8, 0, 0, 0, time.UTC)
-	// BP-sys = 142: above hypertensive warn (140), below default warn (150).
-	// History spans 120-150 so personal-baseline z-score does NOT fire on 142
-	// (the test isolates the safety/warn-band layer, not personal baseline).
+	// BP-sys = 155: above default warn (150), below hypertensive warn (170).
+	// History spans 120-150 so personal-baseline z-score does NOT fire on 155.
 	hist := readingsAt(now, 120, 135, 145, 130, 140, 125, 150, 130, 135, 140, 145, 130)
 	defaultIn := Input{
 		Kind:    "bp_sys",
-		Value:   142,
+		Value:   155,
 		History: hist,
 		Profile: Profile{},
 		Now:     now,
@@ -101,16 +100,15 @@ func TestAnalyze_ConditionProfileFiresEarlierThanDefault(t *testing.T) {
 	defaultR := Analyze(defaultIn)
 	hyperR := Analyze(hyperIn)
 
-	if defaultR.Severity != SeverityNormal {
-		t.Errorf("default profile bp_sys=142 should NOT fire (under 150 warn, z<2): got %v reason=%v z=%v",
+	// Default profile patient gets the nuisance alert at 155 (above 150 warn).
+	if defaultR.Severity != SeverityWarning {
+		t.Errorf("default profile bp_sys=155 SHOULD fire warn (above 150): got %v reason=%v z=%v",
 			defaultR.Severity, defaultR.ReasonCode, defaultR.ZScore)
 	}
-	if hyperR.Severity != SeverityWarning {
-		t.Errorf("hypertensive profile bp_sys=142 SHOULD fire warn (above narrowed 140): got %v reason=%v",
+	// Hypertensive patient: 155 is normal-for-them, should NOT fire.
+	if hyperR.Severity != SeverityNormal {
+		t.Errorf("hypertensive profile bp_sys=155 should NOT fire (under widened 170): got %v reason=%v",
 			hyperR.Severity, hyperR.ReasonCode)
-	}
-	if hyperR.ReasonCode != ReasonSafetyWarnHigh {
-		t.Errorf("hypertensive reason: got %v want %v", hyperR.ReasonCode, ReasonSafetyWarnHigh)
 	}
 }
 
