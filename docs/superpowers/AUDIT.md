@@ -82,26 +82,31 @@ testutil  → db
 
 ## 4. Безопасность
 
-### 4.1 Что проверено
+### 4.1 Что проверено и закрыто
 
 - ✅ Нет hardcoded паролей/токенов/API-ключей в коде.
-- ✅ JWT теперь в HttpOnly cookie (Secure при HTTPS, SameSite=Lax). Bearer — fallback для скриптовых клиентов.
-- ✅ Rate-limiter (5 req/мин per IP) на `/api/auth/login` + `/api/auth/register`.
+- ✅ JWT в HttpOnly cookie (`SECURE_COOKIES` env, default true; SameSite=Lax). Bearer — fallback для скриптовых клиентов. **Не доверяем X-Forwarded-Proto** — это анти-паттерн, который может тихо снять Secure флаг через спуфинг заголовка.
+- ✅ Rate-limiter (5 req/мин per IP) на `/api/auth/login` + `/api/auth/register`. **Стейл-бакеты pruning'ятся** каждые 256 вызовов (TTL 1 час) — память не растёт неограниченно.
 - ✅ CORS с явным `AllowOrigins` (не wildcard) + `AllowCredentials: true`.
 - ✅ `ReadHeaderTimeout` 10s — защита от slowloris.
-- ✅ Graceful shutdown 15s — корректное завершение под SIGTERM.
+- ✅ Graceful shutdown 15s — корректное завершение под SIGTERM, **включая drain in-flight push deliveries** через `push.Service.Drain`.
 - ✅ bcrypt для паролей с `DefaultCost`.
-- ✅ Параметризованные SQL — pgx с `$1`/`$2` плейсхолдерами; строковая конкатенация только для `LIMIT N` где N — целочисленный литерал.
+- ✅ Параметризованные SQL — pgx с `$1`/`$2` плейсхолдерами; единственный `fmt.Sprintf` в SQL — для retention sweep с code-constant `90`, без user-input.
 - ✅ Валидация входа через `binding:"required,email,..."` на всех handlers.
 - ✅ FK с `ON DELETE CASCADE` гарантирует консистентность при удалении пользователя.
-- ✅ govulncheck: 0 уязвимостей в Go-коде после dep-bumps.
+- ✅ govulncheck: 0 уязвимостей в Go-коде.
+- ✅ **PHI audit log** (миграция 0009): каждый authenticated `/api/me` или `/api/patients/*` request пишется в `audit_log` (actor, role, patient, method, path, status, IP, UA). Async; не блокирует ответ.
+- ✅ **Push recipients filtered by role**: только `relation IN ('doctor','family')` получают push, не любые `linked_id`.
+- ✅ **Push payload без PII в видимом теле**: вместо "alert reason — kind" теперь "Критический показатель — проверьте панель". Полная информация требует клика → /alerts → сервер → проверка cookie.
+- ✅ **Per-user TZ** (миграция 0008): `users.tz` валидируется через `time.LoadLocation`; medications schedule привязан к TZ пациента, не к серверной локали.
+- ✅ **Next.js 14.2.35 → 15.5.15**: 4 high-severity DoS уязвимости устранены. App Router params async-migration сделана.
 
 ### 4.2 Что осталось / known gaps
 
-- ⚠ **next 14.x DoS уязвимости** (HTTP smuggling, image-cache exhaustion). Фикс — обновление до next 16.x; ломает App Router APIs. Решение для thesis-MVP: остаться на 14.x; задокументировать. Важно: эти уязвимости — DoS, не RCE; не дают доступа к данным пациента.
-- ⚠ Push payload не зашифрован end-to-end (только TLS канал). Для медицинских PII это допустимо в MVP, но в production — лучше шифровать payload отдельно или ограничить только метаданными ("у пациента X алерт", без детали).
-- 🔵 (out of scope) CSRF: не критично т.к. cookie + SameSite=Lax + API на отдельном поддомене с явным CORS.
-- 🔵 (out of scope) Audit log для PHI-доступа.
+- ⚠ Один **moderate** в `npm audit`: postcss XSS via crafted CSS — build-time only, не принимаем user-controlled CSS. Не exploitable.
+- 🔵 Next 16: требует eslint 9 flat-config — отдельный refactor, deferred.
+- 🔵 (out of scope) CSRF: не критично т.к. cookie + SameSite=Lax + явный CORS allowlist.
+- 🔵 (out of scope) Push payload encryption beyond TLS: webpush-go уже шифрует payload через ECE с subscriber's keys (часть Web Push spec). Push gateways видят только ciphertext.
 
 ---
 
@@ -178,14 +183,17 @@ testutil  → db
 
 ## 9. Что осталось на будущее
 
+Закрыто в audit-followup раунде:
+- [x] ~~Next.js upgrade~~ → Next 14 → 15, 4 high vulns gone
+- [x] ~~Per-user TZ field~~ → migration 0008 + medications uses it
+- [x] ~~PHI audit log~~ → migration 0009 + middleware + tests
+- [x] ~~`algorithm_runs` retention policy~~ → daily 90-day sweep at startup
+- [x] ~~Push payload PII risk~~ → body now generic, details only after auth click
+
 Backlog (не блокирует thesis-защиту):
 
-- [ ] Next.js 16 upgrade (security hardening; требует регрессии)
-- [ ] Per-user TZ field в `users` (сейчас медикаменты привязаны к UTC)
+- [ ] Next.js 16 (требует eslint 9 flat-config rewrite — отдельная задача)
 - [ ] Doctor-side prescribing (создание медикамента для пациента)
-- [ ] Push payload encryption beyond TLS
-- [ ] Audit log для PHI-доступа
-- [ ] `algorithm_runs` retention policy миграция
 - [ ] Doctor-side care notes
 - [ ] Real-time chat (сейчас polling)
 - [ ] Доступ к настоящему пациентскому датасету (если есть) — replace BIDMC ICU с домашними замерами
