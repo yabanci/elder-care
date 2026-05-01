@@ -90,6 +90,31 @@ func TestBaselineV2_ColdStartProducesNoAlerts(t *testing.T) {
 	}
 }
 
+// TestBaselineV2_CriticalAlertWithZeroCaregiversDoesNotPanic verifies the
+// push-recipients path handles the empty-caregivers case gracefully.
+// Regression guard against a future change to recipientsForPush that
+// dereferences a nil row or panics on empty results. Push itself is
+// disabled in this test (no notifier installed) so we're really
+// asserting the alert-creation path doesn't trip on the goroutine spawn.
+func TestBaselineV2_CriticalAlertWithZeroCaregiversDoesNotPanic(t *testing.T) {
+	r := setup(t)
+	token := register(t, r, "p-lonely@test.kz") // no patient_links exist
+
+	w := testutil.DoJSON(t, r, "POST", "/api/metrics", token, map[string]any{
+		"kind": "pulse", "value": 200,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("create: %d %s", w.Code, w.Body.String())
+	}
+
+	w = testutil.DoJSON(t, r, "GET", "/api/alerts", token, nil)
+	var alerts []map[string]any
+	testutil.Decode(t, w, &alerts)
+	if len(alerts) != 1 || alerts[0]["severity"] != "critical" {
+		t.Fatalf("expected one critical alert, got %v", alerts)
+	}
+}
+
 // TestBaselineV2_ConditionProfileSuppressesNuisanceAlertsForChronic proves
 // Claim C: a hypertensive patient does NOT get a nuisance alert at
 // bp_sys=155 (their normal-for-them range), while a default-profile patient

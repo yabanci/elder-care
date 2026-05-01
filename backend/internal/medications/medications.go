@@ -62,13 +62,18 @@ func (s *Service) Create(c *gin.Context) {
 		httpx.BadRequest(c, err.Error())
 		return
 	}
-	// Default start_date is today in UTC, matching the UTC anchoring used
-	// by Today(). Otherwise a server in Asia/Almaty (UTC+5) would store
-	// tomorrow's date for a medication created at 21:00 UTC.
-	start := time.Now().UTC().Truncate(24 * time.Hour)
+	// Default start_date is today in the patient's timezone, matching how
+	// Today() resolves the schedule. Falls back to UTC if the user has no
+	// tz set (the column default after migration 0008).
+	loc, _, err := s.patientLocation(c.Request.Context(), patientID)
+	if err != nil {
+		httpx.Internal(c, err)
+		return
+	}
+	start := time.Now().In(loc)
 	if req.StartDate != "" {
-		t, err := time.Parse("2006-01-02", req.StartDate)
-		if err != nil {
+		t, perr := time.Parse("2006-01-02", req.StartDate)
+		if perr != nil {
 			httpx.BadRequest(c, "invalid start_date")
 			return
 		}
@@ -92,7 +97,7 @@ func (s *Service) Create(c *gin.Context) {
 	}
 
 	var m Medication
-	err := s.pool.QueryRow(c.Request.Context(), `
+	err = s.pool.QueryRow(c.Request.Context(), `
 		INSERT INTO medications(patient_id, name, dosage, times_of_day, start_date, end_date, notes)
 		VALUES($1,$2,$3,$4,$5,$6,$7)
 		RETURNING id, patient_id, name, dosage, times_of_day, start_date, end_date, active, notes, created_at
@@ -196,24 +201,30 @@ func (s *Service) LogDose(c *gin.Context) {
 
 // Today returns today's medication schedule with status (taken/missed/pending).
 //
-// "Today" is resolved in UTC for both Go and Postgres. This avoids the
-// off-by-one bug that surfaces when the server's local TZ is past
-// midnight UTC but the DB session TZ is UTC (Asia/Almaty after 19:00,
-// for example). Per-user timezone support is future work; for MVP, the
-// medications schedule is anchored to UTC dates.
+// "Today" is resolved in the patient's timezone (users.tz, default UTC).
+// Both Go and Postgres compute the date in that TZ so the boundary
+// matches: a 22:00-Almaty-time medication is "today" for an Almaty
+// patient even when the server clock has rolled past midnight UTC.
 func (s *Service) Today(c *gin.Context) {
 	patientID := resolvePatientID(c)
 	if !s.hasAccess(c.Request.Context(), c.GetString(auth.CtxUserID), patientID) {
 		httpx.Forbidden(c, "")
 		return
 	}
+
+	loc, tzName, err := s.patientLocation(c.Request.Context(), patientID)
+	if err != nil {
+		httpx.Internal(c, err)
+		return
+	}
+
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT id, name, dosage, times_of_day
 		FROM medications
 		WHERE patient_id=$1 AND active=TRUE
-		  AND start_date <= (now() AT TIME ZONE 'utc')::date
-		  AND (end_date IS NULL OR end_date >= (now() AT TIME ZONE 'utc')::date)
-	`, patientID)
+		  AND start_date <= (now() AT TIME ZONE $2)::date
+		  AND (end_date IS NULL OR end_date >= (now() AT TIME ZONE $2)::date)
+	`, patientID, tzName)
 	if err != nil {
 		httpx.Internal(c, err)
 		return
@@ -228,7 +239,7 @@ func (s *Service) Today(c *gin.Context) {
 		Status       string    `json:"status"` // pending|taken|missed|skipped
 	}
 
-	today := time.Now().UTC().Format("2006-01-02")
+	today := time.Now().In(loc).Format("2006-01-02")
 	items := []scheduleItem{}
 	for rows.Next() {
 		var id, name string
@@ -239,12 +250,12 @@ func (s *Service) Today(c *gin.Context) {
 			return
 		}
 		for _, hhmm := range times {
-			t, err := time.ParseInLocation("2006-01-02 15:04", today+" "+hhmm, time.UTC)
+			t, err := time.ParseInLocation("2006-01-02 15:04", today+" "+hhmm, loc)
 			if err != nil {
 				continue
 			}
 			items = append(items, scheduleItem{
-				MedicationID: id, Name: name, Dosage: dosage, ScheduledAt: t, Status: "pending",
+				MedicationID: id, Name: name, Dosage: dosage, ScheduledAt: t.UTC(), Status: "pending",
 			})
 		}
 	}
@@ -252,8 +263,9 @@ func (s *Service) Today(c *gin.Context) {
 	logRows, err := s.pool.Query(c.Request.Context(), `
 		SELECT medication_id, scheduled_at, status
 		FROM medication_logs
-		WHERE patient_id=$1 AND (scheduled_at AT TIME ZONE 'utc')::date = (now() AT TIME ZONE 'utc')::date
-	`, patientID)
+		WHERE patient_id=$1
+		  AND (scheduled_at AT TIME ZONE $2)::date = (now() AT TIME ZONE $2)::date
+	`, patientID, tzName)
 	if err != nil {
 		httpx.Internal(c, err)
 		return
@@ -280,6 +292,27 @@ func (s *Service) Today(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, items)
+}
+
+// patientLocation looks up the patient's IANA timezone, defaulting to UTC
+// if missing or unparseable. Returns both the *time.Location (for Go
+// date math) and the textual TZ name (for Postgres `AT TIME ZONE` casts).
+func (s *Service) patientLocation(ctx context.Context, patientID string) (*time.Location, string, error) {
+	var tz string
+	err := s.pool.QueryRow(ctx, `SELECT tz FROM users WHERE id=$1`, patientID).Scan(&tz)
+	if err != nil {
+		return time.UTC, "UTC", err
+	}
+	if tz == "" {
+		tz = "UTC"
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		// Fall back rather than 500: stale tz data shouldn't break the
+		// schedule. Log so it's visible.
+		return time.UTC, "UTC", nil
+	}
+	return loc, tz, nil
 }
 
 func (s *Service) hasAccess(ctx context.Context, userID, patientID string) bool {

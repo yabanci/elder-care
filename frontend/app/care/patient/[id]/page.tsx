@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
@@ -13,8 +13,8 @@ import { MessageSquare } from 'lucide-react';
 
 const CHART_KINDS: MetricKind[] = ['pulse', 'bp_sys', 'glucose', 'spo2'];
 
-export default function PatientDetail({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function PatientDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const user = useAuthedUser(['doctor', 'family']);
   const { t } = useI18n();
   const [patient, setPatient] = useState<LinkedPatient | null>(null);
