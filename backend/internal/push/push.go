@@ -13,6 +13,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"sync"
+	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/gin-gonic/gin"
@@ -22,12 +24,20 @@ import (
 	"eldercare/backend/internal/httpx"
 )
 
+// sendTimeout caps how long any single push delivery may take. Push
+// gateways (FCM/APNs/Mozilla) have their own timeouts; this is our
+// best-effort upper bound so a stuck connection never holds up shutdown.
+const sendTimeout = 10 * time.Second
+
 // Service holds the VAPID keypair + DB pool. One instance per process.
+// Tracks in-flight delivery goroutines via WaitGroup so the server can
+// drain them gracefully on SIGTERM (see Drain()).
 type Service struct {
 	pool       *pgxpool.Pool
 	publicKey  string
 	privateKey string
 	subject    string // "mailto:..." or app URL; required by webpush spec
+	inflight   sync.WaitGroup
 }
 
 // NewService initialises with VAPID keys. If publicKey is empty, push is
@@ -120,12 +130,29 @@ type AlertPayload struct {
 
 // SendToUser pushes the payload to every active subscription for `userID`.
 // Best-effort: per-subscription errors are logged; HTTP 404/410 cause
-// pruning. Safe to call from request handlers — never blocks longer than
-// the underlying HTTP timeout.
-func (s *Service) SendToUser(ctx context.Context, userID string, payload AlertPayload) {
+// pruning. Caller's context is replaced with an internal one bounded by
+// sendTimeout so the goroutine cannot outlive the work indefinitely.
+//
+// SendToUser registers itself with the service's WaitGroup so Drain()
+// can block until in-flight deliveries finish, allowing graceful
+// shutdown to wait for push notifications to clear.
+func (s *Service) SendToUser(_ context.Context, userID string, payload AlertPayload) {
 	if !s.Enabled() {
 		return
 	}
+	s.inflight.Add(1)
+	go func() {
+		defer s.inflight.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
+		defer cancel()
+		s.deliver(ctx, userID, payload)
+	}()
+}
+
+// deliver does the actual subscription lookup and notification sending.
+// Pulled out of SendToUser so the WaitGroup-tracked goroutine has a
+// single defer-Done at its top level, not nested in a longer body.
+func (s *Service) deliver(ctx context.Context, userID string, payload AlertPayload) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id=$1`,
 		userID)
@@ -133,14 +160,6 @@ func (s *Service) SendToUser(ctx context.Context, userID string, payload AlertPa
 		log.Printf("push: list subs for %s: %v", userID, err)
 		return
 	}
-	defer rows.Close()
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("push: marshal payload: %v", err)
-		return
-	}
-
 	type subRow struct {
 		ID, Endpoint, P256dh, Auth string
 	}
@@ -152,6 +171,13 @@ func (s *Service) SendToUser(ctx context.Context, userID string, payload AlertPa
 			continue
 		}
 		subs = append(subs, r)
+	}
+	rows.Close()
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("push: marshal payload: %v", err)
+		return
 	}
 
 	for _, r := range subs {
@@ -180,6 +206,24 @@ func (s *Service) SendToUser(ctx context.Context, userID string, payload AlertPa
 		if resp.StatusCode >= 400 {
 			log.Printf("push: sub %s returned %d", r.ID, resp.StatusCode)
 		}
+	}
+}
+
+// Drain blocks until all in-flight push deliveries finish or `ctx`
+// expires, whichever comes first. Called from cmd/server's shutdown
+// sequence after http.Server.Shutdown returns, so the process exits
+// cleanly without leaking pending deliveries.
+func (s *Service) Drain(ctx context.Context) {
+	done := make(chan struct{})
+	go func() {
+		s.inflight.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return
+	case <-ctx.Done():
+		log.Printf("push: drain timed out: %v", ctx.Err())
 	}
 }
 

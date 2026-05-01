@@ -14,6 +14,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	"eldercare/backend/internal/audit"
 	"eldercare/backend/internal/auth"
 	"eldercare/backend/internal/config"
 	"eldercare/backend/internal/db"
@@ -48,7 +49,13 @@ func main() {
 		return
 	}
 
-	authSvc := auth.NewService(pool, cfg.JWTSecret, cfg.JWTTTLHours)
+	// Long-lived background context for daily housekeeping; cancelled on
+	// shutdown so retention sweep loops exit cleanly.
+	bgCtx, cancelBg := context.WithCancel(context.Background())
+	defer cancelBg()
+
+	authSvc := auth.NewService(pool, cfg.JWTSecret, cfg.JWTTTLHours).WithSecureCookies(cfg.SecureCookies)
+	metrics.StartRetentionSweep(bgCtx, pool)
 	pushSvc := push.NewService(pool, cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
 	metricsSvc := metrics.NewService(pool).WithNotifier(pushAdapter{pushSvc})
 	medSvc := medications.NewService(pool)
@@ -80,7 +87,7 @@ func main() {
 	r.POST("/api/auth/logout", authSvc.Logout)
 
 	api := r.Group("/api")
-	api.Use(authSvc.Middleware())
+	api.Use(authSvc.Middleware(), audit.Middleware(pool))
 
 	api.GET("/me", authSvc.Me)
 	api.PATCH("/me", authSvc.UpdateMe)
@@ -153,6 +160,10 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("graceful shutdown failed: %v", err)
 	}
+	// Wait for in-flight push deliveries to finish (best-effort, capped
+	// by the same shutdown deadline). Without this, the process can exit
+	// while a goroutine is mid-HTTP-call to FCM/APNs/Mozilla.
+	pushSvc.Drain(shutdownCtx)
 	log.Println("server stopped")
 }
 
