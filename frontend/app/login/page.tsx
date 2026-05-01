@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { api, setToken, type User } from '@/lib/api';
+import { api, type User } from '@/lib/api';
 import { persistLangLocally, useI18n } from '@/lib/i18n';
 import { LangSwitcher } from '@/components/LangSwitcher';
 
@@ -24,7 +24,8 @@ export default function LoginPage() {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      setToken(res.token);
+      // Auth cookie is set by the server; we just cache the user blob
+      // for instant header rendering on the next page.
       localStorage.setItem('user', JSON.stringify(res.user));
       persistLangLocally(res.user.lang);
       if (res.user.role === 'patient' && !res.user.onboarded) {

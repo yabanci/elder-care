@@ -23,6 +23,7 @@ import (
 	"eldercare/backend/internal/messages"
 	"eldercare/backend/internal/metrics"
 	"eldercare/backend/internal/plans"
+	"eldercare/backend/internal/push"
 )
 
 func main() {
@@ -48,7 +49,8 @@ func main() {
 	}
 
 	authSvc := auth.NewService(pool, cfg.JWTSecret, cfg.JWTTTLHours)
-	metricsSvc := metrics.NewService(pool)
+	pushSvc := push.NewService(pool, cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
+	metricsSvc := metrics.NewService(pool).WithNotifier(pushAdapter{pushSvc})
 	medSvc := medications.NewService(pool)
 	linksSvc := links.NewService(pool)
 	msgSvc := messages.NewService(pool)
@@ -75,6 +77,7 @@ func main() {
 	loginLimiter := httpx.NewTokenBucket(5, 12*time.Second)
 	r.POST("/api/auth/register", httpx.RateLimitMiddleware(loginLimiter), authSvc.Register)
 	r.POST("/api/auth/login", httpx.RateLimitMiddleware(loginLimiter), authSvc.Login)
+	r.POST("/api/auth/logout", authSvc.Logout)
 
 	api := r.Group("/api")
 	api.Use(authSvc.Middleware())
@@ -118,6 +121,11 @@ func main() {
 	api.POST("/messages", msgSvc.Send)
 	api.GET("/messages/:otherID", msgSvc.Thread)
 
+	// web push
+	r.GET("/api/push/public-key", pushSvc.PublicKey) // public — needed to subscribe
+	api.POST("/api/push/subscribe", pushSvc.Subscribe)
+	api.DELETE("/api/push/subscribe", pushSvc.Unsubscribe)
+
 	srv := &http.Server{
 		Addr:              cfg.ServerAddr,
 		Handler:           r,
@@ -146,4 +154,23 @@ func main() {
 		log.Printf("graceful shutdown failed: %v", err)
 	}
 	log.Println("server stopped")
+}
+
+// pushAdapter bridges metrics.Notifier (a pure interface, no push-pkg
+// dep) to push.Service. Lives here so internal/metrics doesn't import
+// internal/push (avoids a backend-wide import cycle if push ever needs
+// to query metrics).
+type pushAdapter struct {
+	svc *push.Service
+}
+
+func (a pushAdapter) SendToUser(ctx context.Context, userID string, p metrics.PushPayload) {
+	a.svc.SendToUser(ctx, userID, push.AlertPayload{
+		Title:     p.Title,
+		Body:      p.Body,
+		URL:       p.URL,
+		Severity:  p.Severity,
+		PatientID: p.PatientID,
+		AlertID:   p.AlertID,
+	})
 }

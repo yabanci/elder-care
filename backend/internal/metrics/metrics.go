@@ -41,11 +41,48 @@ type Alert struct {
 	CreatedAt        time.Time `json:"created_at"`
 }
 
-type Service struct {
-	pool *pgxpool.Pool
+// Notifier abstracts the push subsystem so metrics doesn't import it
+// directly (and so tests can inject a no-op). Implemented by *push.Service.
+type Notifier interface {
+	SendToUser(ctx context.Context, userID string, payload PushPayload)
 }
 
-func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+// PushPayload mirrors push.AlertPayload but lives here so metrics doesn't
+// need to depend on the push package. The server wires the two with a
+// small adapter function.
+type PushPayload struct {
+	Title     string
+	Body      string
+	URL       string
+	Severity  string
+	PatientID string
+	AlertID   string
+}
+
+// nopNotifier is the default when the server hasn't configured push.
+type nopNotifier struct{}
+
+func (nopNotifier) SendToUser(context.Context, string, PushPayload) {}
+
+type Service struct {
+	pool     *pgxpool.Pool
+	notifier Notifier
+}
+
+func NewService(pool *pgxpool.Pool) *Service {
+	return &Service{pool: pool, notifier: nopNotifier{}}
+}
+
+// WithNotifier returns the same service with the given notifier installed.
+// Use chained at server startup: metrics.NewService(pool).WithNotifier(pushSvc)
+func (s *Service) WithNotifier(n Notifier) *Service {
+	if n == nil {
+		s.notifier = nopNotifier{}
+		return s
+	}
+	s.notifier = n
+	return s
+}
 
 type createReq struct {
 	Kind       string   `json:"kind" binding:"required,oneof=pulse bp_sys bp_dia glucose temperature weight spo2"`
@@ -167,7 +204,49 @@ func (s *Service) runBaseline(ctx context.Context, m Metric) (*Alert, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Push critical alerts to the patient and all linked caregivers.
+	// Best-effort: failures here never propagate to the API caller — the
+	// notifier owns its own logging/retry policy. Run on a detached
+	// context so the goroutine survives the request returning.
+	if a.Severity == baseline.SeverityCritical {
+		recipients := s.recipientsForPush(ctx, a.PatientID)
+		payload := PushPayload{
+			Title:     "ElderCare alert",
+			Body:      a.ReasonCode + " — " + a.Kind,
+			URL:       "/patient/alerts",
+			Severity:  a.Severity,
+			PatientID: a.PatientID,
+			AlertID:   a.ID,
+		}
+		go func(ids []string) {
+			for _, rid := range ids {
+				s.notifier.SendToUser(context.Background(), rid, payload)
+			}
+		}(recipients)
+	}
+
 	return &a, nil
+}
+
+// recipientsForPush returns the patient + every caregiver linked to them.
+// Used by alert push delivery. Errors are logged-and-ignored — push is
+// best-effort and must not block the alert insert path.
+func (s *Service) recipientsForPush(ctx context.Context, patientID string) []string {
+	out := []string{patientID}
+	rows, err := s.pool.Query(ctx,
+		`SELECT linked_id FROM patient_links WHERE patient_id=$1`, patientID)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // fetchChronicConditions returns the patient's chronic_conditions text, or

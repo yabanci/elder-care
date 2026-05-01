@@ -181,6 +181,13 @@ const DICT: Record<Lang, Record<string, string>> = {
     reason_condition_crit: 'Критическое отклонение для вашего состояния',
     reason_cold_start: 'Накапливаем данные для персональной нормы',
     reason_legacy: 'Старый алгоритм',
+    // web push
+    push_title: 'Push-уведомления',
+    push_enabled: 'Включены — критические оповещения придут в браузер',
+    push_disabled: 'Выключены',
+    push_enable_btn: 'Включить',
+    push_disable_btn: 'Выключить',
+    push_error: 'Не удалось включить push',
   },
   kk: {
     app_name: 'ElderCare',
@@ -337,6 +344,13 @@ const DICT: Record<Lang, Record<string, string>> = {
     reason_condition_crit: 'Сіздің жағдайыңыз үшін критикалық ауытқу',
     reason_cold_start: 'Жеке норма үшін деректер жинау',
     reason_legacy: 'Ескі алгоритм',
+    // web push
+    push_title: 'Push-хабарлар',
+    push_enabled: 'Қосылған — қауіпті хабарлар браузерге келеді',
+    push_disabled: 'Өшірілген',
+    push_enable_btn: 'Қосу',
+    push_disable_btn: 'Өшіру',
+    push_error: 'Push қосылмады',
   },
   en: {
     app_name: 'ElderCare',
@@ -493,6 +507,13 @@ const DICT: Record<Lang, Record<string, string>> = {
     reason_condition_crit: 'Critical deviation for your condition',
     reason_cold_start: 'Gathering data for personal baseline',
     reason_legacy: 'Legacy algorithm',
+    // web push
+    push_title: 'Push notifications',
+    push_enabled: 'Enabled — critical alerts will appear in your browser',
+    push_disabled: 'Disabled',
+    push_enable_btn: 'Enable',
+    push_disable_btn: 'Disable',
+    push_error: 'Failed to enable push',
   },
 };
 

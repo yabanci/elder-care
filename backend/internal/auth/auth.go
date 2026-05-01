@@ -68,6 +68,27 @@ type authResp struct {
 	User  User   `json:"user"`
 }
 
+// CookieName is the HttpOnly cookie that holds the JWT for browser
+// clients. Bearer tokens in the Authorization header continue to work for
+// programmatic clients (integration tests, CLI scripts).
+const CookieName = "eldercare_token"
+
+// setAuthCookie writes a fresh JWT cookie on the response. SameSite=Lax
+// is sufficient because we only attach the cookie to top-level navigations
+// + same-origin XHR; the API and UI share an origin in production.
+// Secure is set in non-Dev mode; we detect via the request scheme since
+// we don't have an explicit env flag.
+func setAuthCookie(c *gin.Context, token string, ttl time.Duration) {
+	secure := c.Request.TLS != nil || strings.HasPrefix(c.Request.Header.Get("X-Forwarded-Proto"), "https")
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(CookieName, token, int(ttl.Seconds()), "/", "", secure, true /*httpOnly*/)
+}
+
+func clearAuthCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(CookieName, "", -1, "/", "", false, true)
+}
+
 func (s *Service) Register(c *gin.Context) {
 	var req registerReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -143,6 +164,7 @@ func (s *Service) Register(c *gin.Context) {
 		httpx.Internal(c, err)
 		return
 	}
+	setAuthCookie(c, token, s.jwtTTL)
 	c.JSON(http.StatusOK, authResp{Token: token, User: u})
 }
 
@@ -183,7 +205,16 @@ func (s *Service) Login(c *gin.Context) {
 		httpx.Internal(c, err)
 		return
 	}
+	setAuthCookie(c, token, s.jwtTTL)
 	c.JSON(http.StatusOK, authResp{Token: token, User: u})
+}
+
+// Logout clears the auth cookie. JWTs are stateless so we cannot revoke
+// the token itself — but clearing the cookie removes the browser's
+// ability to authenticate. Programmatic Bearer holders are unaffected.
+func (s *Service) Logout(c *gin.Context) {
+	clearAuthCookie(c)
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 func (s *Service) Me(c *gin.Context) {
@@ -272,12 +303,11 @@ const (
 
 func (s *Service) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Authorization")
-		if !strings.HasPrefix(header, "Bearer ") {
-			httpx.Unauthorized(c, "missing bearer token")
+		raw := s.extractToken(c)
+		if raw == "" {
+			httpx.Unauthorized(c, "missing token")
 			return
 		}
-		raw := strings.TrimPrefix(header, "Bearer ")
 		token, err := jwt.Parse(raw, func(t *jwt.Token) (interface{}, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -299,6 +329,20 @@ func (s *Service) Middleware() gin.HandlerFunc {
 		c.Set(CtxRole, role)
 		c.Next()
 	}
+}
+
+// extractToken returns the JWT from the request, preferring the
+// Authorization header (programmatic clients) and falling back to the
+// HttpOnly cookie (browser sessions). Empty string means no credential
+// was presented.
+func (s *Service) extractToken(c *gin.Context) string {
+	if header := c.GetHeader("Authorization"); strings.HasPrefix(header, "Bearer ") {
+		return strings.TrimPrefix(header, "Bearer ")
+	}
+	if cookie, err := c.Cookie(CookieName); err == nil && cookie != "" {
+		return cookie
+	}
+	return ""
 }
 
 func RequireRole(roles ...string) gin.HandlerFunc {

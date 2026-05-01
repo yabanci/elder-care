@@ -162,9 +162,41 @@ def cmd_eval(args: list[str]) -> int:
 
 
 def cmd_eval_stretch(args: list[str]) -> int:
-    """Stretch: real-data validation on BIDMC. Stubbed; needs dataset access."""
-    print("eval-stretch is currently a stub. To enable, fetch the BIDMC PPG")
-    print("dataset and add an adapter at evaluation/src/eldercare_eval/realdata.py.")
+    """Stretch: real-data validation on BIDMC PPG and Respiration Dataset.
+
+    Looks for `bidmc_*.csv` files in `evaluation/data/bidmc/`. If none
+    exist, prints download instructions and exits 0 (non-blocking).
+    Appends the summary block to REPORT.md so the section appears next
+    to Claim A and Claim C results.
+    """
+    from . import realdata
+
+    files = realdata.discover_files()
+    if not files:
+        print("No BIDMC files found at evaluation/data/bidmc/.")
+        print("Fetch with:")
+        print("  mkdir -p evaluation/data/bidmc && \\")
+        print("  for i in 01 02 03 04 05; do \\")
+        print("    curl -sL 'https://physionet.org/files/bidmc/1.0.0/bidmc_csv/bidmc_${i}_Numerics.csv' \\")
+        print("      -o evaluation/data/bidmc/bidmc_${i}.csv; done")
+        return 0
+
+    _ensure_dirs()
+    from .runner import Profile
+    with algo_runner() as runner:
+        rows = realdata.evaluate_bidmc(runner, profile_for_threshold=Profile())
+
+    print(f"BIDMC eval: {len(rows)} (patient, metric) rows")
+    summary = realdata.summarize(rows)
+
+    # Append (or replace if already present) the BIDMC section in REPORT.md.
+    existing = REPORT_PATH.read_text() if REPORT_PATH.exists() else ""
+    marker = "## Stretch goal C — real-data validation (BIDMC)"
+    if marker in existing:
+        # Replace from marker to end of file (BIDMC always last section).
+        existing = existing.split(marker)[0]
+    REPORT_PATH.write_text(existing.rstrip() + "\n\n" + summary)
+    print(f"appended BIDMC summary to {REPORT_PATH}")
     return 0
 
 
