@@ -4,9 +4,9 @@
 
 ## Стек
 
-- **Backend:** Go 1.25, Gin, PostgreSQL 16, JWT
-- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind, Recharts
-- **Eval harness:** Python 3.12 (numpy, matplotlib) — drives the production Go algorithm via JSON-line subprocess
+- **Backend:** Go 1.25, Gin, PostgreSQL 16, JWT (HttpOnly cookies + Bearer fallback), Web Push (VAPID), per-IP rate-limit, graceful shutdown
+- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind, Recharts; service worker для push-уведомлений
+- **Eval harness:** Python 3.12 (numpy, matplotlib) — гоняет production Go-алгоритм через JSON-line subprocess; включает синтетический generator + BIDMC real-data адаптер (PhysioNet)
 - **Dev:** Docker Compose
 
 ## Научная новизна
@@ -87,3 +87,12 @@ make clean    # уборка venv и сгенерированных артефа
 ```
 
 Свежий REPORT.md и `evaluation/results/eval_full.csv` — committee-ready summary.
+
+## Безопасность и production-hardening
+
+- JWT в HttpOnly cookie (Secure при HTTPS, SameSite=Lax); Bearer header — fallback для скриптовых клиентов.
+- Per-IP rate limit 5 req/min на `/api/auth/login` и `/api/auth/register`.
+- Graceful shutdown 15s по SIGTERM/SIGINT.
+- Web Push на критические alerts через VAPID (передаётся пациенту + всем привязанным caregivers).
+- `govulncheck` зелёный (0 уязвимостей в Go-deps).
+- Полный аудит: см. `docs/superpowers/AUDIT.md`.
