@@ -18,11 +18,13 @@ import (
 	"eldercare/backend/internal/auth"
 	"eldercare/backend/internal/config"
 	"eldercare/backend/internal/db"
+	"eldercare/backend/internal/events"
 	"eldercare/backend/internal/httpx"
 	"eldercare/backend/internal/links"
 	"eldercare/backend/internal/medications"
 	"eldercare/backend/internal/messages"
 	"eldercare/backend/internal/metrics"
+	"eldercare/backend/internal/notes"
 	"eldercare/backend/internal/plans"
 	"eldercare/backend/internal/push"
 )
@@ -57,11 +59,15 @@ func main() {
 	authSvc := auth.NewService(pool, cfg.JWTSecret, cfg.JWTTTLHours).WithSecureCookies(cfg.SecureCookies)
 	metrics.StartRetentionSweep(bgCtx, pool)
 	pushSvc := push.NewService(pool, cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
-	metricsSvc := metrics.NewService(pool).WithNotifier(pushAdapter{pushSvc})
+	eventBroker := events.NewBroker(pool)
+	metricsSvc := metrics.NewService(pool).
+		WithNotifier(pushAdapter{pushSvc}).
+		WithEventPublisher(eventBroker)
 	medSvc := medications.NewService(pool)
 	linksSvc := links.NewService(pool)
 	msgSvc := messages.NewService(pool)
 	plansSvc := plans.NewService(pool)
+	notesSvc := notes.NewService(pool)
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
@@ -115,7 +121,10 @@ func main() {
 	api.GET("/patients/:patientID/alerts", metricsSvc.ListAlerts)
 	api.GET("/patients/:patientID/medications", medSvc.List)
 	api.GET("/patients/:patientID/medications/today", medSvc.Today)
+	api.POST("/patients/:patientID/medications", medSvc.Create) // doctor prescribes
 	api.POST("/patients/:patientID/metrics", metricsSvc.CreateForPatient)
+	api.POST("/patients/:patientID/notes", notesSvc.Create)
+	api.GET("/patients/:patientID/notes", notesSvc.List)
 
 	// plans (weekly schedule) — patients only
 	plansGroup := api.Group("/plans", auth.RequireRole("patient"))
@@ -127,6 +136,10 @@ func main() {
 	// messaging
 	api.POST("/messages", msgSvc.Send)
 	api.GET("/messages/:otherID", msgSvc.Thread)
+
+	// live alert stream (SSE) — long-lived; auth via cookie/Bearer like
+	// every other /api endpoint.
+	api.GET("/events", eventBroker.Stream)
 
 	// web push
 	r.GET("/api/push/public-key", pushSvc.PublicKey) // public — needed to subscribe
