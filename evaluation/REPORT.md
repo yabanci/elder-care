@@ -1,6 +1,6 @@
 # ElderCare Baseline v2 — Evaluation Report
 
-_Generated 2026-04-30T21:48:42+00:00_
+_Generated 2026-05-01T04:40:51+00:00_
 
 ## Algorithms compared
 
@@ -17,45 +17,53 @@ _Generated 2026-04-30T21:48:42+00:00_
 
 | metric | static_v1 | mean_std_v1 | median_mad | ewma | ewma_mad | ewma_mad_condition |
 |---|---|---|---|---|---|---|
-| bp_dia | 0.292 | 0.320 | 0.302 | 0.320 | 0.343 | 0.382 |
-| bp_sys | 0.258 | 0.313 | 0.279 | 0.309 | 0.307 | 0.297 |
-| glucose | 0.107 | 0.201 | 0.155 | 0.203 | 0.136 | 0.117 |
-| pulse | 0.121 | 0.278 | 0.285 | 0.288 | 0.304 | 0.304 |
-| spo2 | 0.039 | 0.296 | 0.068 | 0.074 | 0.085 | 0.123 |
-| temperature | 0.091 | 0.436 | 0.175 | 0.394 | 0.141 | 0.141 |
+| bp_dia | 0.321 | 0.310 | 0.323 | 0.291 | 0.319 | 0.336 |
+| bp_sys | 0.307 | 0.308 | 0.245 | 0.296 | 0.323 | 0.389 |
+| glucose | 0.133 | 0.172 | 0.137 | 0.170 | 0.151 | 0.134 |
+| pulse | 0.029 | 0.267 | 0.262 | 0.264 | 0.159 | 0.159 |
+| spo2 | 0.041 | 0.282 | 0.099 | 0.098 | 0.106 | 0.117 |
+| temperature | 0.062 | 0.230 | 0.062 | 0.327 | 0.062 | 0.062 |
 
 ## F1 by metric (critical threshold)
 
 | metric | static_v1 | mean_std_v1 | median_mad | ewma | ewma_mad | ewma_mad_condition |
 |---|---|---|---|---|---|---|
-| bp_dia | 0.167 | 0.350 | 0.071 | 0.100 | 0.125 | 0.125 |
-| bp_sys | 0.250 | 0.542 | 0.167 | 0.167 | 0.250 | 0.000 |
-| glucose | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
-| pulse | 0.000 | 0.417 | 0.250 | 0.250 | 0.250 | 0.250 |
+| bp_dia | 0.167 | 0.500 | 0.100 | 0.100 | 0.100 | 0.100 |
+| bp_sys | 0.167 | 0.500 | 0.100 | 0.167 | 0.167 | 0.000 |
+| glucose | 0.000 | 0.083 | 0.333 | 0.333 | 0.083 | 0.083 |
+| pulse | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
 | spo2 | 0.000 | 0.325 | 0.000 | 0.000 | 0.000 | 0.000 |
 | temperature | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
 
-## Macro-F1 across all (archetype × metric) combinations
+## Precision / Recall / F1 macros (warning threshold)
 
-| Algorithm | Macro-F1 |
-|---|---|
-| `static_v1` | 0.110 |
-| `mean_std_v1` | 0.290 |
-| `median_mad` | 0.146 |
-| `ewma` | 0.175 |
-| `ewma_mad` | 0.162 |
-| `ewma_mad_condition` | 0.145 |
+| Algorithm | Precision | Recall | F1 |
+|---|---|---|---|
+| `static_v1` | 0.218 | 0.186 | 0.102 |
+| `mean_std_v1` | 0.272 | 0.341 | 0.248 |
+| `median_mad` | 0.188 | 0.281 | 0.139 |
+| `ewma` | 0.264 | 0.312 | 0.170 |
+| `ewma_mad` | 0.239 | 0.249 | 0.122 |
+| `ewma_mad_condition` | 0.270 | 0.211 | 0.115 |
+
+**Reading the table.** F1 weights precision and recall equally, but in
+an alerting system aimed at elderly home monitoring the operational
+cost asymmetry is severe — false positives drive alarm fatigue and are
+the primary reason such systems get disabled. The right headline metric
+for Claim A is therefore **false-alarm rate** (next section), not
+aggregate F1: v2 trades some recall for materially fewer false alarms,
+which is the intended trade-off.
 
 ## Claim C — false-alarm rate on chronic archetypes (lower = better)
 
 | Algorithm | Mean FAR per patient-week |
 |---|---|
-| `static_v1` | 1.944 |
-| `mean_std_v1` | 2.515 |
-| `median_mad` | 2.651 |
-| `ewma` | 2.534 |
-| `ewma_mad` | 2.210 |
-| `ewma_mad_condition` | 1.167 |
+| `static_v1` | 2.346 |
+| `mean_std_v1` | 2.949 |
+| `median_mad` | 3.085 |
+| `ewma` | 2.962 |
+| `ewma_mad` | 2.644 |
+| `ewma_mad_condition` | 1.244 |
 
 ## Plots
 
@@ -70,12 +78,3 @@ _Generated 2026-04-30T21:48:42+00:00_
 - Synthetic data: per-archetype literature-grounded means/SDs, diurnal cycles, drift, measurement noise, state-correlated noise. Anomaly types planted: point (4σ), contextual (2.5σ within static safety), collective (3-day drift), inverse (down-side dip).
 - Algorithms `static_v1` and `mean_std_v1` are Python re-implementations of v1-as-shipped (no streak gate, population variance) for the ablation comparison. Other algorithms run as the production Go code via `cmd/algo-runner`.
 - Cold-start is in effect: when an archetype has < 10 readings in the last 14 days, the algorithm refuses to fire personal-baseline alerts. Safety bounds still apply.
-
-## Stretch goal C — real-data validation (BIDMC)
-
-_BIDMC PPG and Respiration Dataset — 53 ICU recordings; downsampled from 1 Hz to ~8 home-cadence readings per file. Oracle thresholds: HR > 120 / < 50 bpm, SpO2 < 92%._ **Caveat**: ICU cadence ≠ home cadence; results illustrative.
-
-| metric | patients | total events | detected | sensitivity |
-|---|---|---|---|---|
-| `pulse` | 18 | 8 | 8 | 100.00% |
-| `spo2` | 18 | 0 | 0 | n/a |

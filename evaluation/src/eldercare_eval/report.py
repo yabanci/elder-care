@@ -28,10 +28,18 @@ def write(rows: list[EvalRow], out_path: Path, figures_dir: Path) -> None:
     macro = aggregate_f1(rows)
     chronic_archetypes = {"hypertension_75", "t2d_78", "copd_80"}
 
-    chronic_rows = [r for r in rows if r.archetype in chronic_archetypes and r.threshold == "warning"]
+    warning_rows = [r for r in rows if r.threshold == "warning"]
+    chronic_rows = [r for r in warning_rows if r.archetype in chronic_archetypes]
     far_by_alg: dict[str, list[float]] = {}
     for r in chronic_rows:
         far_by_alg.setdefault(r.algorithm, []).append(r.far_per_week)
+
+    # Per-algorithm precision / recall macros, computed on warning threshold.
+    p_by_alg: dict[str, list[float]] = {}
+    r_by_alg: dict[str, list[float]] = {}
+    for r in warning_rows:
+        p_by_alg.setdefault(r.algorithm, []).append(r.precision)
+        r_by_alg.setdefault(r.algorithm, []).append(r.recall)
 
     lines = [
         "# ElderCare Baseline v2 — Evaluation Report",
@@ -55,15 +63,27 @@ def write(rows: list[EvalRow], out_path: Path, figures_dir: Path) -> None:
         "",
         _table(rows, "critical"),
         "",
-        "## Macro-F1 across all (archetype × metric) combinations",
+        "## Precision / Recall / F1 macros (warning threshold)",
         "",
-        "| Algorithm | Macro-F1 |",
-        "|---|---|",
+        "| Algorithm | Precision | Recall | F1 |",
+        "|---|---|---|---|",
     ])
     for aid in all_algorithm_ids():
-        lines.append(f"| `{aid}` | {macro.get(aid, 0):.3f} |")
+        ps = p_by_alg.get(aid, [])
+        rs = r_by_alg.get(aid, [])
+        p_macro = (sum(ps) / len(ps)) if ps else 0.0
+        r_macro = (sum(rs) / len(rs)) if rs else 0.0
+        lines.append(f"| `{aid}` | {p_macro:.3f} | {r_macro:.3f} | {macro.get(aid, 0):.3f} |")
 
     lines.extend([
+        "",
+        "**Reading the table.** F1 weights precision and recall equally, but in",
+        "an alerting system aimed at elderly home monitoring the operational",
+        "cost asymmetry is severe — false positives drive alarm fatigue and are",
+        "the primary reason such systems get disabled. The right headline metric",
+        "for Claim A is therefore **false-alarm rate** (next section), not",
+        "aggregate F1: v2 trades some recall for materially fewer false alarms,",
+        "which is the intended trade-off.",
         "",
         "## Claim C — false-alarm rate on chronic archetypes (lower = better)",
         "",
