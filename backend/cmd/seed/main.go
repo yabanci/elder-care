@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
+	"eldercare/backend/internal/baseline"
 	"eldercare/backend/internal/config"
 	"eldercare/backend/internal/db"
 )
@@ -30,6 +31,17 @@ func main() {
 	patient := mustUser(ctx, pool, "patient@demo.kz", "demo1234", "Айгүл Сейтова", "patient", "+77771112233", "1952-06-14", "ELDER001")
 	doctor := mustUser(ctx, pool, "doctor@demo.kz", "demo1234", "Др. Нұрлан Ахметов", "doctor", "+77772223344", "", "")
 	family := mustUser(ctx, pool, "family@demo.kz", "demo1234", "Ерлан Сейтов", "family", "+77773334455", "", "")
+
+	// Tag the demo patient as hypertensive — exercises the v2
+	// condition-aware threshold path so the demo shows Claim C in action
+	// (BP readings around 145 do NOT alarm for this patient because the
+	// hypertension profile widens the warn-high band to 170).
+	if _, err := pool.Exec(ctx, `
+		UPDATE users SET chronic_conditions = $2, height_cm = 162, bp_norm = '130/80', onboarded = TRUE
+		WHERE id = $1
+	`, patient, "артериальная гипертензия"); err != nil {
+		log.Fatalf("update patient profile: %v", err)
+	}
 
 	mustLink(ctx, pool, patient, doctor, "doctor")
 	mustLink(ctx, pool, patient, family, "family")
@@ -129,8 +141,9 @@ func seedMetrics(ctx context.Context, pool *pgxpool.Pool, patient string) {
 			}
 		}
 	}
-	// run a lightweight baseline check on the last inserted outliers by inserting alert rows directly
-	// (в продакшене alert создаёт API; для сидов пробежим простой trigger)
+	// Backfill alerts for the seeded outliers using v2 reason codes and the
+	// real algorithm version. Frontend i18n maps the codes to localized
+	// strings so the demo dashboard reads naturally in any language.
 	rows, err := pool.Query(ctx, `
 		WITH stats AS (
 		  SELECT patient_id, kind, avg(value) AS mean, stddev_pop(value) AS std
@@ -150,16 +163,21 @@ func seedMetrics(ctx context.Context, pool *pgxpool.Pool, patient string) {
 		var v, mean, std float64
 		_ = rows.Scan(&metricID, &pid, &kind, &v, &mean, &std)
 		z := abs((v - mean) / std)
-		severity := "warning"
-		reason := "отклонение от личной нормы (z≥2)"
+		severity := baseline.SeverityWarning
+		reasonCode := baseline.ReasonBaselineWarn
+		reasonText := "отклонение от личной нормы (z≥2)"
 		if z >= 3 {
-			severity = "critical"
-			reason = "значительное отклонение от личной нормы (z≥3)"
+			severity = baseline.SeverityCritical
+			reasonCode = baseline.ReasonBaselineCrit
+			reasonText = "значительное отклонение от личной нормы (z≥3)"
 		}
 		_, err := pool.Exec(ctx, `
-			INSERT INTO alerts(patient_id, metric_id, severity, reason, kind, value, baseline_mean, baseline_std)
-			VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-		`, pid, metricID, severity, reason, kind, v, mean, std)
+			INSERT INTO alerts(
+				patient_id, metric_id, severity, reason, reason_code,
+				algorithm_version, kind, value, baseline_mean, baseline_std
+			)
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		`, pid, metricID, severity, reasonText, reasonCode, baseline.Version, kind, v, mean, std)
 		if err != nil {
 			log.Fatalf("alert: %v", err)
 		}

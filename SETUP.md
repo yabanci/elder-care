@@ -441,11 +441,28 @@ rm -rf frontend/.next frontend/node_modules
 
 ---
 
-## 13. Полезные ссылки
+## 13. Evaluation harness (для защиты)
+
+Свежие графики и таблицы для защиты — в `evaluation/`. Требуется Python ≥ 3.11.
+
+```bash
+cd evaluation
+make parity   # replay parity-fixture; должен пройти всегда
+make smoke    # tiny eval (~30s) — CI guard
+make eval     # полный прогон (~5s в текущем масштабе); пишет REPORT.md и figures/*.png
+```
+
+Headline-цифры в `evaluation/REPORT.md`. CI-джобы `algorithm-parity` и
+`evaluation-smoke` гарантируют, что алгоритм Go и Python-обёртка
+не разъезжаются между релизами.
+
+## 14. Полезные ссылки
 
 - Основной README: `README.md`
+- Спека thesis: `docs/superpowers/specs/2026-05-01-thesis-baseline-v2-design.md`
 - Миграции БД: `backend/internal/db/migrations/`
-- Тесты baseline-алгоритма: `backend/internal/metrics/baseline_test.go`
+- Тесты baseline-алгоритма: `backend/internal/baseline/*_test.go`
+- Eval harness: `evaluation/README.md`
 - Палитра и стили: `frontend/tailwind.config.ts`, `frontend/app/globals.css`
 
 Вопросы/баги — смотрите логи backend (stdout) и frontend (в терминале `npm run dev`).

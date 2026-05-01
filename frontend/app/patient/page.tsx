@@ -9,14 +9,14 @@ import { SummaryGrid } from '@/components/SummaryGrid';
 import { BMICard } from '@/components/BMICard';
 import { api, type Alert, type MedScheduleItem, type Metric, type MetricKind, type User } from '@/lib/api';
 import { METRIC_META } from '@/lib/metric-meta';
-import { useI18n } from '@/lib/i18n';
+import { useI18n, localeTag } from '@/lib/i18n';
 import { AlertTriangle, Phone } from 'lucide-react';
 
 const QUICK_KINDS: MetricKind[] = ['pulse', 'bp_sys', 'glucose', 'temperature'];
 
 export default function PatientHome() {
   const authUser = useAuthedUser(['patient']);
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [user, setUser] = useState<User | null>(null);
   const [summary, setSummary] = useState<Metric[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -116,7 +116,7 @@ export default function PatientHome() {
             <div className="space-y-2">
               {schedule.map((item) => {
                 const scheduled = new Date(item.scheduled_at);
-                const hhmm = scheduled.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                const hhmm = scheduled.toLocaleTimeString(localeTag(lang), { hour: '2-digit', minute: '2-digit' });
                 const pending = item.status === 'pending' || item.status === 'missed';
                 return (
                   <div

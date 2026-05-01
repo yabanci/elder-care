@@ -62,7 +62,10 @@ func (s *Service) Create(c *gin.Context) {
 		httpx.BadRequest(c, err.Error())
 		return
 	}
-	start := time.Now()
+	// Default start_date is today in UTC, matching the UTC anchoring used
+	// by Today(). Otherwise a server in Asia/Almaty (UTC+5) would store
+	// tomorrow's date for a medication created at 21:00 UTC.
+	start := time.Now().UTC().Truncate(24 * time.Hour)
 	if req.StartDate != "" {
 		t, err := time.Parse("2006-01-02", req.StartDate)
 		if err != nil {
@@ -192,6 +195,12 @@ func (s *Service) LogDose(c *gin.Context) {
 }
 
 // Today returns today's medication schedule with status (taken/missed/pending).
+//
+// "Today" is resolved in UTC for both Go and Postgres. This avoids the
+// off-by-one bug that surfaces when the server's local TZ is past
+// midnight UTC but the DB session TZ is UTC (Asia/Almaty after 19:00,
+// for example). Per-user timezone support is future work; for MVP, the
+// medications schedule is anchored to UTC dates.
 func (s *Service) Today(c *gin.Context) {
 	patientID := resolvePatientID(c)
 	if !s.hasAccess(c.Request.Context(), c.GetString(auth.CtxUserID), patientID) {
@@ -202,8 +211,8 @@ func (s *Service) Today(c *gin.Context) {
 		SELECT id, name, dosage, times_of_day
 		FROM medications
 		WHERE patient_id=$1 AND active=TRUE
-		  AND start_date <= CURRENT_DATE
-		  AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+		  AND start_date <= (now() AT TIME ZONE 'utc')::date
+		  AND (end_date IS NULL OR end_date >= (now() AT TIME ZONE 'utc')::date)
 	`, patientID)
 	if err != nil {
 		httpx.Internal(c, err)
@@ -219,7 +228,7 @@ func (s *Service) Today(c *gin.Context) {
 		Status       string    `json:"status"` // pending|taken|missed|skipped
 	}
 
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().UTC().Format("2006-01-02")
 	items := []scheduleItem{}
 	for rows.Next() {
 		var id, name string
@@ -230,7 +239,7 @@ func (s *Service) Today(c *gin.Context) {
 			return
 		}
 		for _, hhmm := range times {
-			t, err := time.ParseInLocation("2006-01-02 15:04", today+" "+hhmm, time.Local)
+			t, err := time.ParseInLocation("2006-01-02 15:04", today+" "+hhmm, time.UTC)
 			if err != nil {
 				continue
 			}
@@ -243,7 +252,7 @@ func (s *Service) Today(c *gin.Context) {
 	logRows, err := s.pool.Query(c.Request.Context(), `
 		SELECT medication_id, scheduled_at, status
 		FROM medication_logs
-		WHERE patient_id=$1 AND scheduled_at::date = CURRENT_DATE
+		WHERE patient_id=$1 AND (scheduled_at AT TIME ZONE 'utc')::date = (now() AT TIME ZONE 'utc')::date
 	`, patientID)
 	if err != nil {
 		httpx.Internal(c, err)
@@ -259,9 +268,9 @@ func (s *Service) Today(c *gin.Context) {
 			httpx.Internal(c, err)
 			return
 		}
-		logs[medID+"|"+sched.Format(time.RFC3339)] = status
+		logs[medID+"|"+sched.UTC().Format(time.RFC3339)] = status
 	}
-	now := time.Now()
+	now := time.Now().UTC()
 	for i := range items {
 		key := items[i].MedicationID + "|" + items[i].ScheduledAt.Format(time.RFC3339)
 		if s, ok := logs[key]; ok {
