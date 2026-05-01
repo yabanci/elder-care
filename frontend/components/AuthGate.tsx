@@ -15,11 +15,10 @@ export function useAuthedUser(
   const skipOnboarding = opts?.skipOnboardingRedirect ?? false;
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!token) {
-      router.replace('/login');
-      return;
-    }
+    // Auth is now cookie-based: we cannot read the HttpOnly cookie from
+    // JS, so we just attempt /api/me and let the server be the
+    // authority. 401 → bounce to login. This also handles the "expired
+    // token" case naturally without any client-side TTL bookkeeping.
     let cancelled = false;
     api<User>('/api/me')
       .then((u) => {
@@ -39,12 +38,14 @@ export function useAuthedUser(
           return;
         }
         setUser(u);
-        localStorage.setItem('user', JSON.stringify(u));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(u));
+        }
       })
       .catch((err) => {
         if (cancelled) return;
         if (err instanceof ApiError && err.status === 401) {
-          clearAuth();
+          void clearAuth();
           router.replace('/login');
         }
       });

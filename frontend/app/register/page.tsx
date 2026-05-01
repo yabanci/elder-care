@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { api, setToken, type Role, type User } from '@/lib/api';
+import { api, type Role, type User } from '@/lib/api';
 import { persistLangLocally, useI18n } from '@/lib/i18n';
 import { LangSwitcher } from '@/components/LangSwitcher';
 
@@ -30,7 +30,8 @@ export default function RegisterPage() {
         method: 'POST',
         body: JSON.stringify(form),
       });
-      setToken(res.token);
+      // Auth cookie is set by the server; cache user blob locally for
+      // header rendering on next page navigation.
       localStorage.setItem('user', JSON.stringify(res.user));
       persistLangLocally(res.user.lang);
       if (res.user.role === 'patient' && !res.user.onboarded) {

@@ -7,18 +7,31 @@ export class ApiError extends Error {
   }
 }
 
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('token');
+// Auth is now cookie-based: the backend sets an HttpOnly `eldercare_token`
+// cookie on login/register, and the browser auto-attaches it to all
+// same-origin requests. We send `credentials: 'include'` so the cookie
+// flows even on cross-origin dev (Next on :3100 → Go on :8090).
+//
+// `setToken` is kept for backwards compatibility (some pages may still
+// hold a copy in memory during development) but no longer writes to
+// localStorage. `clearAuth` posts /api/auth/logout so the server clears
+// the cookie, and removes any cached user blob.
+
+export function setToken(_token: string) {
+  // intentionally no-op: cookie is set server-side, not by JS.
 }
 
-export function setToken(token: string) {
-  localStorage.setItem('token', token);
-}
-
-export function clearAuth() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+export function clearAuth(): Promise<void> {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token'); // legacy cleanup
+  }
+  return fetch(`${API_BASE}/api/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+    .then(() => undefined)
+    .catch(() => undefined);
 }
 
 export async function api<T>(
@@ -27,10 +40,12 @@ export async function api<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('Content-Type', 'application/json');
-  const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers,
+    credentials: 'include',
+  });
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {
