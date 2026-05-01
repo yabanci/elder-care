@@ -2,7 +2,7 @@ SHELL := /bin/bash
 include .env
 export
 
-.PHONY: up down migrate seed backend frontend check test lint fmt
+.PHONY: up down migrate seed backend mobile mobile-test mobile-build install check test lint fmt test-integration
 
 up:
 	docker compose up -d db
@@ -22,12 +22,20 @@ seed:
 backend:
 	cd backend && go run ./cmd/server
 
-frontend:
-	cd frontend && npm run dev
+# Run the Flutter app on the default device (chrome / connected handset).
+# For an Android emulator: flutter emulators --launch <id> first.
+mobile:
+	cd mobile && flutter run
+
+mobile-test:
+	cd mobile && flutter test
+
+mobile-build:
+	cd mobile && flutter build apk --release
 
 install:
 	cd backend && go mod download
-	cd frontend && npm install
+	cd mobile && flutter pub get
 
 test:
 	cd backend && go test ./...
@@ -38,12 +46,11 @@ test-integration:
 
 lint:
 	cd backend && go vet ./...
-	cd frontend && npm run lint
+	cd mobile && flutter analyze --no-fatal-infos
 
 fmt:
 	cd backend && gofmt -w .
-	cd frontend && npx prettier --write "app/**/*.{ts,tsx}" "components/**/*.{ts,tsx}" "lib/**/*.{ts,tsx}" 2>/dev/null || true
+	cd mobile && dart format .
 
-check: lint test
-	cd frontend && npx tsc --noEmit
+check: lint test mobile-test
 	@echo "All checks passed."

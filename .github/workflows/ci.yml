@@ -49,39 +49,27 @@ jobs:
         # -p 1 — integration tests across packages share the same DB via TRUNCATE; serialize them.
         run: go test -p 1 -race -count=1 ./...
 
-  frontend:
-    name: Frontend (next.js)
+  mobile:
+    name: Mobile (Flutter)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: subosito/flutter-action@v2
         with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          channel: stable
 
-      - name: Install deps
-        working-directory: frontend
-        run: npm ci
+      - name: Resolve deps
+        working-directory: mobile
+        run: flutter pub get
 
-      - name: Typecheck
-        working-directory: frontend
-        run: npx tsc --noEmit
+      - name: Static analysis
+        working-directory: mobile
+        run: flutter analyze --no-fatal-infos
 
-      - name: Lint
-        working-directory: frontend
-        run: npx next lint
-
-      - name: Unit tests
-        working-directory: frontend
-        run: npm test
-
-      - name: Build
-        working-directory: frontend
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:8090
-        run: npm run build
+      - name: Tests
+        working-directory: mobile
+        run: flutter test
 
   docker-compose:
     name: Docker Compose build
