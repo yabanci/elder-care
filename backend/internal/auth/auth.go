@@ -33,20 +33,36 @@ type User struct {
 	PrescribedMeds    *string    `json:"prescribed_meds,omitempty"`
 	Onboarded         bool       `json:"onboarded"`
 	Lang              *string    `json:"lang,omitempty"`
+	TZ                string     `json:"tz"`
 }
 
 type Service struct {
-	pool      *pgxpool.Pool
-	jwtSecret []byte
-	jwtTTL    time.Duration
+	pool          *pgxpool.Pool
+	jwtSecret     []byte
+	jwtTTL        time.Duration
+	secureCookies bool
 }
 
+// NewService constructs an auth service. secureCookies should be true in
+// any environment that has TLS terminated *anywhere* in the request path
+// (production, staging behind a real proxy). Set false only for local
+// dev on plain http.
 func NewService(pool *pgxpool.Pool, secret string, ttlHours int) *Service {
 	return &Service{
-		pool:      pool,
-		jwtSecret: []byte(secret),
-		jwtTTL:    time.Duration(ttlHours) * time.Hour,
+		pool:          pool,
+		jwtSecret:     []byte(secret),
+		jwtTTL:        time.Duration(ttlHours) * time.Hour,
+		secureCookies: true,
 	}
+}
+
+// WithSecureCookies returns the same service with the Secure-cookie flag
+// overridden. Chain it from cmd/server when initialising:
+//
+//	auth.NewService(...).WithSecureCookies(cfg.SecureCookies)
+func (s *Service) WithSecureCookies(secure bool) *Service {
+	s.secureCookies = secure
+	return s
 }
 
 type registerReq struct {
@@ -76,17 +92,19 @@ const CookieName = "eldercare_token"
 // setAuthCookie writes a fresh JWT cookie on the response. SameSite=Lax
 // is sufficient because we only attach the cookie to top-level navigations
 // + same-origin XHR; the API and UI share an origin in production.
-// Secure is set in non-Dev mode; we detect via the request scheme since
-// we don't have an explicit env flag.
-func setAuthCookie(c *gin.Context, token string, ttl time.Duration) {
-	secure := c.Request.TLS != nil || strings.HasPrefix(c.Request.Header.Get("X-Forwarded-Proto"), "https")
+//
+// Secure is controlled by the operator via SECURE_COOKIES env (default
+// true). We deliberately do NOT autodetect from X-Forwarded-Proto — that
+// header is attacker-controllable on a misconfigured proxy and would
+// flip Secure to false silently.
+func (s *Service) setAuthCookie(c *gin.Context, token string, ttl time.Duration) {
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(CookieName, token, int(ttl.Seconds()), "/", "", secure, true /*httpOnly*/)
+	c.SetCookie(CookieName, token, int(ttl.Seconds()), "/", "", s.secureCookies, true /*httpOnly*/)
 }
 
-func clearAuthCookie(c *gin.Context) {
+func (s *Service) clearAuthCookie(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(CookieName, "", -1, "/", "", false, true)
+	c.SetCookie(CookieName, "", -1, "/", "", s.secureCookies, true)
 }
 
 func (s *Service) Register(c *gin.Context) {
@@ -135,10 +153,10 @@ func (s *Service) Register(c *gin.Context) {
 			INSERT INTO users(email, password_hash, full_name, role, phone, birth_date, invite_code, onboarded)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8)
 			RETURNING id, email, full_name, role, phone, birth_date, invite_code,
-			          height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang
+			          height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang, tz
 		`, strings.ToLower(req.Email), string(hash), req.FullName, req.Role, phone, birth, inviteCode, onboarded).
 			Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
-				&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang)
+				&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang, &u.TZ)
 		if err == nil {
 			lastErr = nil
 			break
@@ -164,7 +182,7 @@ func (s *Service) Register(c *gin.Context) {
 		httpx.Internal(c, err)
 		return
 	}
-	setAuthCookie(c, token, s.jwtTTL)
+	s.setAuthCookie(c, token, s.jwtTTL)
 	c.JSON(http.StatusOK, authResp{Token: token, User: u})
 }
 
@@ -181,11 +199,11 @@ func (s *Service) Login(c *gin.Context) {
 	)
 	err := s.pool.QueryRow(c.Request.Context(), `
 		SELECT id, email, full_name, role, phone, birth_date, invite_code,
-		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang, password_hash
+		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang, tz, password_hash
 		FROM users WHERE email=$1
 	`, strings.ToLower(req.Email)).
 		Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
-			&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang, &hash)
+			&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang, &u.TZ, &hash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			httpx.Unauthorized(c, "invalid credentials")
@@ -205,7 +223,7 @@ func (s *Service) Login(c *gin.Context) {
 		httpx.Internal(c, err)
 		return
 	}
-	setAuthCookie(c, token, s.jwtTTL)
+	s.setAuthCookie(c, token, s.jwtTTL)
 	c.JSON(http.StatusOK, authResp{Token: token, User: u})
 }
 
@@ -213,7 +231,7 @@ func (s *Service) Login(c *gin.Context) {
 // the token itself — but clearing the cookie removes the browser's
 // ability to authenticate. Programmatic Bearer holders are unaffected.
 func (s *Service) Logout(c *gin.Context) {
-	clearAuthCookie(c)
+	s.clearAuthCookie(c)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -231,10 +249,10 @@ func (s *Service) GetUser(ctx context.Context, id string) (User, error) {
 	var u User
 	err := s.pool.QueryRow(ctx, `
 		SELECT id, email, full_name, role, phone, birth_date, invite_code,
-		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang
+		       height_cm, chronic_conditions, bp_norm, prescribed_meds, onboarded, lang, tz
 		FROM users WHERE id=$1
 	`, id).Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.Phone, &u.BirthDate, &u.InviteCode,
-		&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang)
+		&u.HeightCm, &u.ChronicConditions, &u.BPNorm, &u.PrescribedMeds, &u.Onboarded, &u.Lang, &u.TZ)
 	return u, err
 }
 
@@ -245,6 +263,7 @@ type updateProfileReq struct {
 	PrescribedMeds    *string `json:"prescribed_meds"`
 	Onboarded         *bool   `json:"onboarded"`
 	Lang              *string `json:"lang"`
+	TZ                *string `json:"tz"`
 }
 
 func (s *Service) UpdateMe(c *gin.Context) {
@@ -261,6 +280,18 @@ func (s *Service) UpdateMe(c *gin.Context) {
 			return
 		}
 	}
+	if req.TZ != nil {
+		// Validate via Go's tzdata: time.LoadLocation parses the IANA name
+		// and errors on garbage. Bound the string length to prevent abuse.
+		if len(*req.TZ) > 64 {
+			httpx.BadRequest(c, "tz too long")
+			return
+		}
+		if _, err := time.LoadLocation(*req.TZ); err != nil {
+			httpx.BadRequest(c, "invalid tz, expected IANA name like 'Asia/Almaty'")
+			return
+		}
+	}
 	userID := c.GetString(CtxUserID)
 	_, err := s.pool.Exec(c.Request.Context(), `
 		UPDATE users SET
@@ -270,9 +301,10 @@ func (s *Service) UpdateMe(c *gin.Context) {
 			prescribed_meds    = COALESCE($5, prescribed_meds),
 			onboarded          = COALESCE($6, onboarded),
 			lang               = COALESCE($7, lang),
+			tz                 = COALESCE($8, tz),
 			updated_at         = now()
 		WHERE id=$1
-	`, userID, req.HeightCm, req.ChronicConditions, req.BPNorm, req.PrescribedMeds, req.Onboarded, req.Lang)
+	`, userID, req.HeightCm, req.ChronicConditions, req.BPNorm, req.PrescribedMeds, req.Onboarded, req.Lang, req.TZ)
 	if err != nil {
 		httpx.Internal(c, err)
 		return

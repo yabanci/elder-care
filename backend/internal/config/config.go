@@ -14,6 +14,11 @@ type Config struct {
 	JWTTTLHours int
 	ServerAddr  string
 	CORSOrigin  string
+	// SecureCookies forces the auth cookie's Secure flag. Default true
+	// in production — set to false only for plain-http local dev. Do
+	// NOT autodetect from X-Forwarded-Proto: an attacker can spoof that
+	// header on a misconfigured proxy and trick us into omitting Secure.
+	SecureCookies bool
 	// Web Push (VAPID). Empty values disable push entirely; the API
 	// then returns 503 on /api/push/subscribe and never tries to send.
 	VAPIDPublicKey  string
@@ -36,6 +41,7 @@ func Load() Config {
 		JWTTTLHours:     ttl,
 		ServerAddr:      getenv("SERVER_ADDR", ":8080"),
 		CORSOrigin:      getenv("CORS_ORIGIN", "http://localhost:3000"),
+		SecureCookies:   getenv("SECURE_COOKIES", "true") == "true",
 		VAPIDPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
 		VAPIDPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:    getenv("VAPID_SUBJECT", "mailto:admin@eldercare.local"),
