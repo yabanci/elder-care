@@ -11,4 +11,17 @@ backend/seed
 backend/_bin/
 .vscode/
 .idea/
-frontend/tsconfig.tsbuildinfo
+
+# Flutter
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/.metadata
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/android/.gradle/
+mobile/android/app/.cxx/
+mobile/android/local.properties
+mobile/*.iml
+mobile/web/manifest.json

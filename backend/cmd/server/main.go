@@ -71,13 +71,22 @@ func main() {
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{cfg.CORSOrigin},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
+	corsCfg := cors.Config{
+		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
+		MaxAge:       12 * time.Hour,
+	}
+	// Mobile clients use Bearer tokens (no cookies needed). Allow "*" so
+	// quick browser-based testing works; allow-credentials must be off
+	// when origin is wildcard per the CORS spec. For a specific origin we
+	// re-enable credentials so the optional web cookie path keeps working.
+	if cfg.CORSOrigin == "*" {
+		corsCfg.AllowAllOrigins = true
+	} else {
+		corsCfg.AllowOrigins = []string{cfg.CORSOrigin}
+		corsCfg.AllowCredentials = true
+	}
+	r.Use(cors.New(corsCfg))
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})

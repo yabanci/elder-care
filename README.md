@@ -4,10 +4,10 @@
 
 ## Стек
 
-- **Backend:** Go 1.25, Gin, PostgreSQL 16, JWT (HttpOnly cookies + Bearer fallback), Web Push (VAPID), per-IP rate-limit, graceful shutdown
-- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind, Recharts; service worker для push-уведомлений
-- **Eval harness:** Python 3.12 (numpy, matplotlib) — гоняет production Go-алгоритм через JSON-line subprocess; включает синтетический generator + BIDMC real-data адаптер (PhysioNet)
-- **Dev:** Docker Compose
+- **Backend:** Go 1.25, Gin, PostgreSQL 16, JWT (Bearer + опциональный HttpOnly cookie), Web Push (VAPID), SSE live alerts, per-IP rate-limit, graceful shutdown
+- **Mobile:** Flutter 3.41+ (Material 3, GoRouter, Riverpod, Dio + Bearer interceptor, fl_chart, SSE через HTTP chunked stream); 3 роли × ru/kk/en
+- **Eval harness:** Python 3.12 (numpy, matplotlib) — гоняет production Go-алгоритм через JSON-line subprocess; синтетический generator + BIDMC real-data адаптер (PhysioNet)
+- **Dev:** Docker Compose (Postgres + backend); Flutter SDK для мобилки
 
 ## Научная новизна
 
@@ -34,7 +34,7 @@ make up          # поднять Postgres
 make migrate     # накатить схему
 make seed        # демо-данные
 make backend     # Go API на :8080
-make frontend    # Next.js на :3000
+make mobile      # Flutter run на текущем устройстве (chrome / android emulator)
 ```
 
 Демо-аккаунты после `make seed`:
@@ -63,7 +63,7 @@ elder-care/
       plans/                     еженедельное расписание
       db/                        подключение, миграции
       httpx/                     общие хелперы (rate limit, error wrapping)
-  frontend/                      Next.js SPA с i18n (ru/kk/en)
+  mobile/                        Flutter app (Material 3, ru/kk/en, 3 роли)
   evaluation/                    Python harness (simulator, comparators, report)
   docs/superpowers/              specs + plans
 ```
@@ -71,7 +71,7 @@ elder-care/
 ## make check
 
 ```bash
-make check   # go vet + go test + npm lint + tsc
+make check   # go vet + go test + flutter analyze + flutter test
 ```
 
 ## Evaluation harness

@@ -37,7 +37,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change_me_in_prod_please_use_long_random_string}
       JWT_TTL_HOURS: ${JWT_TTL_HOURS:-168}
       SERVER_ADDR: ":8090"
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3100}
+      # Mobile clients use Bearer tokens; CORS_ORIGIN is only relevant for
+      # web tools / debug consoles. Default permissive for dev; lock down
+      # in production deployment.
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
     ports:
       - "8090:8090"
     depends_on:
@@ -45,17 +49,6 @@ services:
         condition: service_healthy
       seed:
         condition: service_completed_successfully
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8090}
-    ports:
-      - "3100:3100"
-    depends_on:
-      - backend
     restart: unless-stopped
 
 volumes:
