@@ -190,12 +190,18 @@ testutil  → db
 - [x] ~~`algorithm_runs` retention policy~~ → daily 90-day sweep at startup
 - [x] ~~Push payload PII risk~~ → body now generic, details only after auth click
 
+Закрыто в feature-followup раунде:
+- [x] ~~Doctor-side prescribing~~ → migration 0010 + POST /api/patients/:id/medications + role check + 3 tests
+- [x] ~~Doctor-side care notes~~ → migration 0011 + internal/notes + 4 tests
+- [x] ~~Real-time alerts~~ → SSE via internal/events broker, end-to-end test через PublishAlert
+- [x] ~~audit_log retention~~ → 180-day sweep co-located с algorithm_runs
+
 Backlog (не блокирует thesis-защиту):
 
 - [ ] Next.js 16 (требует eslint 9 flat-config rewrite — отдельная задача)
-- [ ] Doctor-side prescribing (создание медикамента для пациента)
-- [ ] Doctor-side care notes
-- [ ] Real-time chat (сейчас polling)
+- [ ] Real-time chat (messages — сейчас polling, можно поверх того же SSE-broker'а)
+- [ ] Frontend UI для care notes + prescribing (backend готов, осталось накатить страницы)
+- [ ] Frontend EventSource подключение к /api/events
 - [ ] Доступ к настоящему пациентскому датасету (если есть) — replace BIDMC ICU с домашними замерами
 
 ---
