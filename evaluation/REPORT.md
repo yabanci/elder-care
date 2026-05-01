@@ -70,3 +70,12 @@ _Generated 2026-04-30T21:48:42+00:00_
 - Synthetic data: per-archetype literature-grounded means/SDs, diurnal cycles, drift, measurement noise, state-correlated noise. Anomaly types planted: point (4σ), contextual (2.5σ within static safety), collective (3-day drift), inverse (down-side dip).
 - Algorithms `static_v1` and `mean_std_v1` are Python re-implementations of v1-as-shipped (no streak gate, population variance) for the ablation comparison. Other algorithms run as the production Go code via `cmd/algo-runner`.
 - Cold-start is in effect: when an archetype has < 10 readings in the last 14 days, the algorithm refuses to fire personal-baseline alerts. Safety bounds still apply.
+
+## Stretch goal C — real-data validation (BIDMC)
+
+_BIDMC PPG and Respiration Dataset — 53 ICU recordings; downsampled from 1 Hz to ~8 home-cadence readings per file. Oracle thresholds: HR > 120 / < 50 bpm, SpO2 < 92%._ **Caveat**: ICU cadence ≠ home cadence; results illustrative.
+
+| metric | patients | total events | detected | sensitivity |
+|---|---|---|---|---|
+| `pulse` | 18 | 8 | 8 | 100.00% |
+| `spo2` | 18 | 0 | 0 | n/a |
