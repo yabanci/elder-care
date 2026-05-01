@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { api, type Message } from '@/lib/api';
-import { useI18n } from '@/lib/i18n';
+import { useI18n, localeTag } from '@/lib/i18n';
 import { Send } from 'lucide-react';
 
 export default function CareThread({ params }: { params: { otherID: string } }) {
@@ -47,7 +47,7 @@ export default function CareThread({ params }: { params: { otherID: string } }) 
 
   const otherName =
     messages.find((m) => m.sender_id === otherID)?.sender_name ?? t('role_patient');
-  const localeTag = lang === 'kk' ? 'kk-KZ' : lang === 'en' ? 'en-US' : 'ru-RU';
+  const tag = localeTag(lang);
 
   return (
     <Shell user={user}>
@@ -64,7 +64,7 @@ export default function CareThread({ params }: { params: { otherID: string } }) 
               >
                 <div>{m.body}</div>
                 <div className={`text-xs mt-1 ${mine ? 'text-primary-100' : 'text-ink-500'}`}>
-                  {new Date(m.created_at).toLocaleTimeString(localeTag, {
+                  {new Date(m.created_at).toLocaleTimeString(tag, {
                     hour: '2-digit',
                     minute: '2-digit',
                   })}

@@ -560,3 +560,18 @@ export function persistLangLocally(l: string | null | undefined) {
     localStorage.setItem(STORAGE_KEY, resolved);
   }
 }
+
+// localeTag maps our internal Lang code to a BCP-47 tag suitable for
+// Intl APIs (toLocaleString, toLocaleDateString, toLocaleTimeString).
+// Falls back to ru-RU for any unknown input — never undefined, so callers
+// don't have to guard.
+export function localeTag(lang: Lang | string | null | undefined): string {
+  switch (lang) {
+    case 'kk':
+      return 'kk-KZ';
+    case 'en':
+      return 'en-US';
+    default:
+      return 'ru-RU';
+  }
+}

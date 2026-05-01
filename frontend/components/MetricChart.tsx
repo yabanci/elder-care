@@ -3,14 +3,17 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import type { Metric, MetricKind } from '@/lib/api';
 import { METRIC_META } from '@/lib/metric-meta';
+import { localeTag, useI18n } from '@/lib/i18n';
 
 export function MetricChart({ kind, metrics }: { kind: MetricKind; metrics: Metric[] }) {
+  const { t, lang } = useI18n();
   const meta = METRIC_META[kind];
+  const tag = localeTag(lang);
   const data = [...metrics]
     .filter((m) => m.kind === kind)
     .sort((a, b) => +new Date(a.measured_at) - +new Date(b.measured_at))
     .map((m) => ({
-      t: new Date(m.measured_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }),
+      t: new Date(m.measured_at).toLocaleDateString(tag, { day: '2-digit', month: '2-digit' }),
       v: m.value,
     }));
 
@@ -31,7 +34,17 @@ export function MetricChart({ kind, metrics }: { kind: MetricKind; metrics: Metr
             <YAxis tick={{ fontSize: 12 }} domain={['auto', 'auto']} />
             <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0' }} />
             {mean > 0 && (
-              <ReferenceLine y={mean} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: `норма ${mean.toFixed(1)}`, fontSize: 11, fill: '#64748b', position: 'right' }} />
+              <ReferenceLine
+                y={mean}
+                stroke="#94a3b8"
+                strokeDasharray="4 4"
+                label={{
+                  value: `${t('alert_baseline')} ${mean.toFixed(1)}`,
+                  fontSize: 11,
+                  fill: '#64748b',
+                  position: 'right',
+                }}
+              />
             )}
             <Line type="monotone" dataKey="v" stroke={meta.color} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
           </LineChart>

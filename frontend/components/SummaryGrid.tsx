@@ -2,11 +2,14 @@
 
 import { Metric, MetricKind } from '@/lib/api';
 import { METRIC_META, formatValue } from '@/lib/metric-meta';
+import { localeTag, useI18n } from '@/lib/i18n';
 
 const ORDER: MetricKind[] = ['pulse', 'bp_sys', 'bp_dia', 'glucose', 'spo2', 'temperature', 'weight'];
 
 export function SummaryGrid({ metrics }: { metrics: Metric[] }) {
+  const { lang } = useI18n();
   const byKind = new Map(metrics.map((m) => [m.kind, m]));
+  const tag = localeTag(lang);
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -27,7 +30,7 @@ export function SummaryGrid({ metrics }: { metrics: Metric[] }) {
             </div>
             {m && (
               <div className="text-xs text-ink-500 mt-1">
-                {new Date(m.measured_at).toLocaleDateString('ru-RU', {
+                {new Date(m.measured_at).toLocaleDateString(tag, {
                   day: 'numeric',
                   month: 'short',
                   hour: '2-digit',

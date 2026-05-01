@@ -5,7 +5,7 @@ import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { api, type Alert, type MetricKind } from '@/lib/api';
 import { METRIC_META, formatValue } from '@/lib/metric-meta';
-import { useI18n } from '@/lib/i18n';
+import { useI18n, localeTag } from '@/lib/i18n';
 
 // localizedReason returns the i18n-mapped reason string for an alert,
 // falling back to the legacy `reason` field for pre-v2 alerts whose
@@ -55,7 +55,7 @@ export default function AlertsPage() {
             a.severity === 'critical'
               ? 'border-danger-500/30 bg-danger-500/5'
               : 'border-warn-500/30 bg-warn-500/5';
-          const localeTag = lang === 'kk' ? 'kk-KZ' : lang === 'en' ? 'en-US' : 'ru-RU';
+          const tag = localeTag(lang);
           return (
             <div key={a.id} className={`card !p-4 border ${color}`}>
               <div className="flex items-start gap-3">
@@ -85,7 +85,7 @@ export default function AlertsPage() {
                     </div>
                   )}
                   <div className="text-xs text-ink-500 mt-1">
-                    {new Date(a.created_at).toLocaleString(localeTag)}
+                    {new Date(a.created_at).toLocaleString(tag)}
                   </div>
                 </div>
                 {!a.acknowledged && (
