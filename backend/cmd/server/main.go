@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -12,6 +17,7 @@ import (
 	"eldercare/backend/internal/auth"
 	"eldercare/backend/internal/config"
 	"eldercare/backend/internal/db"
+	"eldercare/backend/internal/httpx"
 	"eldercare/backend/internal/links"
 	"eldercare/backend/internal/medications"
 	"eldercare/backend/internal/messages"
@@ -62,9 +68,13 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// public
-	r.POST("/api/auth/register", authSvc.Register)
-	r.POST("/api/auth/login", authSvc.Login)
+	// public — login/register sit behind a per-IP rate-limit. 5 requests
+	// per minute per IP discourages credential-stuffing without bothering
+	// real users (5 typos in 60s is well above normal). For multi-instance
+	// deployments swap for a Redis-backed limiter.
+	loginLimiter := httpx.NewTokenBucket(5, 12*time.Second)
+	r.POST("/api/auth/register", httpx.RateLimitMiddleware(loginLimiter), authSvc.Register)
+	r.POST("/api/auth/login", httpx.RateLimitMiddleware(loginLimiter), authSvc.Login)
 
 	api := r.Group("/api")
 	api.Use(authSvc.Middleware())
@@ -108,8 +118,32 @@ func main() {
 	api.POST("/messages", msgSvc.Send)
 	api.GET("/messages/:otherID", msgSvc.Thread)
 
-	log.Printf("server listening on %s", cfg.ServerAddr)
-	if err := r.Run(cfg.ServerAddr); err != nil {
-		log.Fatalf("server: %v", err)
+	srv := &http.Server{
+		Addr:              cfg.ServerAddr,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
+
+	// Graceful shutdown: SIGTERM (k8s, docker stop) and SIGINT (Ctrl-C)
+	// trigger ListenAndServe to return; we then give in-flight requests
+	// up to 15 seconds to finish before closing the DB pool.
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		log.Printf("server listening on %s", cfg.ServerAddr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("server: %v", err)
+		}
+	}()
+
+	sig := <-stop
+	log.Printf("received %s, shutting down...", sig)
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelShutdown()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("graceful shutdown failed: %v", err)
+	}
+	log.Println("server stopped")
 }
