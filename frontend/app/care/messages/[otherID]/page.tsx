@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
 import { api, type Message } from '@/lib/api';
 import { useI18n, localeTag } from '@/lib/i18n';
 import { Send } from 'lucide-react';
 
-export default function CareThread({ params }: { params: { otherID: string } }) {
-  const { otherID } = params;
+export default function CareThread({ params }: { params: Promise<{ otherID: string }> }) {
+  const { otherID } = use(params);
   const user = useAuthedUser(['doctor', 'family']);
   const { t, lang } = useI18n();
   const [messages, setMessages] = useState<Message[]>([]);
