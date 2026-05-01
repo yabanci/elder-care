@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { Shell } from '@/components/Shell';
 import { useAuthedUser } from '@/components/AuthGate';
-import { Watch, Gauge, Thermometer, Globe } from 'lucide-react';
+import { Watch, Gauge, Thermometer, Globe, Bell, BellOff } from 'lucide-react';
 import { LANGS, useI18n, type Lang } from '@/lib/i18n';
 import { api, type User } from '@/lib/api';
+import { disablePush, enablePush, getCurrentSubscription, isPushSupported } from '@/lib/push';
 
 type DeviceKey = 'watch' | 'bp' | 'thermo';
 
@@ -40,10 +41,37 @@ export default function ProfilePage() {
     bp: false,
     thermo: false,
   });
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
 
   useEffect(() => {
     setState(loadState());
+    void (async () => {
+      const supported = await isPushSupported();
+      setPushSupported(supported);
+      if (supported) {
+        const sub = await getCurrentSubscription();
+        setPushOn(!!sub);
+      }
+    })();
   }, []);
+
+  async function togglePush() {
+    setPushBusy(true);
+    try {
+      if (pushOn) {
+        await disablePush();
+        setPushOn(false);
+      } else {
+        const res = await enablePush();
+        if (res.ok) setPushOn(true);
+        else alert(`${t('push_error')}: ${res.reason}`);
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   function toggle(key: DeviceKey) {
     setState((prev) => {
@@ -105,6 +133,31 @@ export default function ProfilePage() {
           ))}
         </div>
       </div>
+
+      {pushSupported && (
+        <div className="card mb-4 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-ink-100 flex items-center justify-center">
+            {pushOn ? (
+              <Bell className="w-5 h-5 text-primary-700" />
+            ) : (
+              <BellOff className="w-5 h-5 text-ink-500" />
+            )}
+          </div>
+          <div className="flex-1">
+            <div className="font-bold">{t('push_title')}</div>
+            <div className="text-sm text-ink-500">
+              {pushOn ? t('push_enabled') : t('push_disabled')}
+            </div>
+          </div>
+          <button
+            onClick={togglePush}
+            disabled={pushBusy}
+            className={pushOn ? 'btn-ghost !min-h-10 !px-4 !text-sm' : 'btn-primary !min-h-10 !px-4 !text-sm'}
+          >
+            {pushOn ? t('push_disable_btn') : t('push_enable_btn')}
+          </button>
+        </div>
+      )}
 
       <h2 className="text-xl font-bold mb-2">{t('profile_devices')}</h2>
       <div className="space-y-2">

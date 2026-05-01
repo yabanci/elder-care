@@ -14,6 +14,11 @@ type Config struct {
 	JWTTTLHours int
 	ServerAddr  string
 	CORSOrigin  string
+	// Web Push (VAPID). Empty values disable push entirely; the API
+	// then returns 503 on /api/push/subscribe and never tries to send.
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	VAPIDSubject    string // mailto: or app URL
 }
 
 func Load() Config {
@@ -26,11 +31,14 @@ func Load() Config {
 	}
 
 	return Config{
-		DatabaseURL: mustEnv("DATABASE_URL"),
-		JWTSecret:   mustEnv("JWT_SECRET"),
-		JWTTTLHours: ttl,
-		ServerAddr:  getenv("SERVER_ADDR", ":8080"),
-		CORSOrigin:  getenv("CORS_ORIGIN", "http://localhost:3000"),
+		DatabaseURL:     mustEnv("DATABASE_URL"),
+		JWTSecret:       mustEnv("JWT_SECRET"),
+		JWTTTLHours:     ttl,
+		ServerAddr:      getenv("SERVER_ADDR", ":8080"),
+		CORSOrigin:      getenv("CORS_ORIGIN", "http://localhost:3000"),
+		VAPIDPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
+		VAPIDPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
+		VAPIDSubject:    getenv("VAPID_SUBJECT", "mailto:admin@eldercare.local"),
 	}
 }
 
