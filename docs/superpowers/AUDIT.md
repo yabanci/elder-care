@@ -196,12 +196,19 @@ testutil  → db
 - [x] ~~Real-time alerts~~ → SSE via internal/events broker, end-to-end test через PublishAlert
 - [x] ~~audit_log retention~~ → 180-day sweep co-located с algorithm_runs
 
+Закрыто в Flutter-pivot раунде:
+- [x] ~~Next.js (любой)~~ — frontend удалён полностью, заменён мобилкой. 4 high vulns больше не применимы.
+- [x] ~~Mobile UI для всех фич~~ — полная Flutter app: 16 экранов, все backend endpoints покрыты.
+- [x] ~~Mobile подключение к /api/events~~ — SSE через Dio chunked stream + global SnackBar.
+- [x] ~~Care notes UI~~ → 4-tab patient detail включая Notes-таб.
+- [x] ~~Prescribing UI~~ → FAB на patient meds tab → bottom sheet форма.
+
 Backlog (не блокирует thesis-защиту):
 
-- [ ] Next.js 16 (требует eslint 9 flat-config rewrite — отдельная задача)
-- [ ] Real-time chat (messages — сейчас polling, можно поверх того же SSE-broker'а)
-- [ ] Frontend UI для care notes + prescribing (backend готов, осталось накатить страницы)
-- [ ] Frontend EventSource подключение к /api/events
+- [ ] Native push notifications (FCM/APNs); сейчас live-alerts только в открытом приложении через SSE.
+- [ ] Bluetooth integration с реальными устройствами (старый UI-мок не перенесён).
+- [ ] Real-time chat (messages — pull-on-open; можно поверх того же SSE-broker'а).
+- [ ] Доступ к настоящему пациентскому датасету — replace BIDMC ICU с домашними замерами.
 - [ ] Доступ к настоящему пациентскому датасету (если есть) — replace BIDMC ICU с домашними замерами
 
 ---
