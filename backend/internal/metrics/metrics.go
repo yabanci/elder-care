@@ -64,13 +64,25 @@ type nopNotifier struct{}
 
 func (nopNotifier) SendToUser(context.Context, string, PushPayload) {}
 
+// EventPublisher streams alert events to live SSE clients.
+// Implemented by *events.Broker; metrics depends on this minimal
+// interface to avoid an internal/metrics ↔ internal/events import cycle.
+type EventPublisher interface {
+	PublishAlert(ctx context.Context, patientID, alertID, severity, kind string)
+}
+
+type nopPublisher struct{}
+
+func (nopPublisher) PublishAlert(context.Context, string, string, string, string) {}
+
 type Service struct {
-	pool     *pgxpool.Pool
-	notifier Notifier
+	pool      *pgxpool.Pool
+	notifier  Notifier
+	publisher EventPublisher
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, notifier: nopNotifier{}}
+	return &Service{pool: pool, notifier: nopNotifier{}, publisher: nopPublisher{}}
 }
 
 // WithNotifier returns the same service with the given notifier installed.
@@ -81,6 +93,17 @@ func (s *Service) WithNotifier(n Notifier) *Service {
 		return s
 	}
 	s.notifier = n
+	return s
+}
+
+// WithEventPublisher returns the same service with a live-event broker
+// installed. nil falls back to no-op.
+func (s *Service) WithEventPublisher(p EventPublisher) *Service {
+	if p == nil {
+		s.publisher = nopPublisher{}
+		return s
+	}
+	s.publisher = p
 	return s
 }
 
@@ -223,6 +246,10 @@ func (s *Service) runBaseline(ctx context.Context, m Metric) (*Alert, error) {
 		for _, rid := range recipients {
 			s.notifier.SendToUser(ctx, rid, payload)
 		}
+		// Stream event to live SSE clients (browser tabs that have the
+		// dashboard open). Same recipients as push; broker handles them
+		// independently. Best-effort, non-blocking.
+		s.publisher.PublishAlert(ctx, a.PatientID, a.ID, a.Severity, a.Kind)
 	}
 
 	return &a, nil

@@ -13,16 +13,18 @@ import (
 )
 
 type Medication struct {
-	ID         string    `json:"id"`
-	PatientID  string    `json:"patient_id"`
-	Name       string    `json:"name"`
-	Dosage     *string   `json:"dosage,omitempty"`
-	TimesOfDay []string  `json:"times_of_day"`
-	StartDate  time.Time `json:"start_date"`
-	EndDate    *time.Time `json:"end_date,omitempty"`
-	Active     bool      `json:"active"`
-	Notes      *string   `json:"notes,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID           string     `json:"id"`
+	PatientID    string     `json:"patient_id"`
+	Name         string     `json:"name"`
+	Dosage       *string    `json:"dosage,omitempty"`
+	TimesOfDay   []string   `json:"times_of_day"`
+	StartDate    time.Time  `json:"start_date"`
+	EndDate      *time.Time `json:"end_date,omitempty"`
+	Active       bool       `json:"active"`
+	Notes        *string    `json:"notes,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	PrescribedBy *string    `json:"prescribed_by,omitempty"`
+	PrescribedAt *time.Time `json:"prescribed_at,omitempty"`
 }
 
 type Log struct {
@@ -51,10 +53,26 @@ type createReq struct {
 	Notes      string   `json:"notes"`
 }
 
+// Create handles both self-prescription (patient at /api/medications) and
+// doctor-prescription (doctor at /api/patients/:patientID/medications). When
+// the caller is not the patient, only doctor-role users may write — family
+// members are read-only on medications. The prescribed_by/prescribed_at
+// columns are populated when caller != patient so the UI can label
+// doctor-prescribed medications distinctly.
 func (s *Service) Create(c *gin.Context) {
 	patientID := resolvePatientID(c)
-	if !s.hasAccess(c.Request.Context(), c.GetString(auth.CtxUserID), patientID) {
+	userID := c.GetString(auth.CtxUserID)
+	role := c.GetString(auth.CtxRole)
+
+	if !s.hasAccess(c.Request.Context(), userID, patientID) {
 		httpx.Forbidden(c, "")
+		return
+	}
+	// Only the patient themselves OR a doctor may add medications.
+	// Family members can view but not prescribe — prescribing is a clinical
+	// action that should leave a doctor-attributable trail.
+	if userID != patientID && role != "doctor" {
+		httpx.Forbidden(c, "only the patient or a doctor may add medications")
 		return
 	}
 	var req createReq
@@ -96,13 +114,33 @@ func (s *Service) Create(c *gin.Context) {
 		notes = req.Notes
 	}
 
+	// Attribute prescription only when caller is not the patient. Self-logged
+	// medications stay un-attributed (the patient is implicit). Use typed
+	// nil pointers so pgx encodes NULL with the right column type;
+	// interface{}(nil) breaks the pgx text-encoder for some column types.
+	var prescribedBy *string
+	var prescribedAt *time.Time
+	if userID != patientID {
+		uid := userID
+		prescribedBy = &uid
+		now := time.Now().UTC()
+		prescribedAt = &now
+	}
+
+	// times_of_day is NOT NULL with default {}; an explicit nil from the
+	// request would still trip the constraint. Normalise to an empty slice.
+	times := req.TimesOfDay
+	if times == nil {
+		times = []string{}
+	}
+
 	var m Medication
 	err = s.pool.QueryRow(c.Request.Context(), `
-		INSERT INTO medications(patient_id, name, dosage, times_of_day, start_date, end_date, notes)
-		VALUES($1,$2,$3,$4,$5,$6,$7)
-		RETURNING id, patient_id, name, dosage, times_of_day, start_date, end_date, active, notes, created_at
-	`, patientID, req.Name, dosage, req.TimesOfDay, start, end, notes).
-		Scan(&m.ID, &m.PatientID, &m.Name, &m.Dosage, &m.TimesOfDay, &m.StartDate, &m.EndDate, &m.Active, &m.Notes, &m.CreatedAt)
+		INSERT INTO medications(patient_id, name, dosage, times_of_day, start_date, end_date, notes, prescribed_by, prescribed_at)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		RETURNING id, patient_id, name, dosage, times_of_day, start_date, end_date, active, notes, created_at, prescribed_by, prescribed_at
+	`, patientID, req.Name, dosage, times, start, end, notes, prescribedBy, prescribedAt).
+		Scan(&m.ID, &m.PatientID, &m.Name, &m.Dosage, &m.TimesOfDay, &m.StartDate, &m.EndDate, &m.Active, &m.Notes, &m.CreatedAt, &m.PrescribedBy, &m.PrescribedAt)
 	if err != nil {
 		httpx.Internal(c, err)
 		return
@@ -117,7 +155,7 @@ func (s *Service) List(c *gin.Context) {
 		return
 	}
 	rows, err := s.pool.Query(c.Request.Context(), `
-		SELECT id, patient_id, name, dosage, times_of_day, start_date, end_date, active, notes, created_at
+		SELECT id, patient_id, name, dosage, times_of_day, start_date, end_date, active, notes, created_at, prescribed_by, prescribed_at
 		FROM medications WHERE patient_id=$1 AND active=TRUE
 		ORDER BY created_at DESC
 	`, patientID)
@@ -129,7 +167,7 @@ func (s *Service) List(c *gin.Context) {
 	out := []Medication{}
 	for rows.Next() {
 		var m Medication
-		if err := rows.Scan(&m.ID, &m.PatientID, &m.Name, &m.Dosage, &m.TimesOfDay, &m.StartDate, &m.EndDate, &m.Active, &m.Notes, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.PatientID, &m.Name, &m.Dosage, &m.TimesOfDay, &m.StartDate, &m.EndDate, &m.Active, &m.Notes, &m.CreatedAt, &m.PrescribedBy, &m.PrescribedAt); err != nil {
 			httpx.Internal(c, err)
 			return
 		}
