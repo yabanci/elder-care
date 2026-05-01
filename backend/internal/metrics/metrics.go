@@ -206,36 +206,39 @@ func (s *Service) runBaseline(ctx context.Context, m Metric) (*Alert, error) {
 	}
 
 	// Push critical alerts to the patient and all linked caregivers.
-	// Best-effort: failures here never propagate to the API caller — the
-	// notifier owns its own logging/retry policy. Run on a detached
-	// context so the goroutine survives the request returning.
+	// SendToUser is fire-and-forget at the implementation level (each
+	// delivery runs in its own goroutine tracked by push.Service's
+	// WaitGroup), so we just enqueue here and return — graceful shutdown
+	// will drain via push.Service.Drain.
 	if a.Severity == baseline.SeverityCritical {
 		recipients := s.recipientsForPush(ctx, a.PatientID)
 		payload := PushPayload{
 			Title:     "ElderCare alert",
-			Body:      a.ReasonCode + " — " + a.Kind,
+			Body:      "Критический показатель — проверьте панель",
 			URL:       "/patient/alerts",
 			Severity:  a.Severity,
 			PatientID: a.PatientID,
 			AlertID:   a.ID,
 		}
-		go func(ids []string) {
-			for _, rid := range ids {
-				s.notifier.SendToUser(context.Background(), rid, payload)
-			}
-		}(recipients)
+		for _, rid := range recipients {
+			s.notifier.SendToUser(ctx, rid, payload)
+		}
 	}
 
 	return &a, nil
 }
 
-// recipientsForPush returns the patient + every caregiver linked to them.
-// Used by alert push delivery. Errors are logged-and-ignored — push is
-// best-effort and must not block the alert insert path.
+// recipientsForPush returns the patient + every doctor/family caregiver
+// linked to them. Filters by patient_links.relation explicitly so a
+// future relation type (e.g. 'admin', 'researcher') does not start
+// receiving PHI by default. Errors are swallowed — push is best-effort
+// and must never block the alert insert path.
 func (s *Service) recipientsForPush(ctx context.Context, patientID string) []string {
 	out := []string{patientID}
-	rows, err := s.pool.Query(ctx,
-		`SELECT linked_id FROM patient_links WHERE patient_id=$1`, patientID)
+	rows, err := s.pool.Query(ctx, `
+		SELECT linked_id FROM patient_links
+		WHERE patient_id=$1 AND relation IN ('doctor', 'family')
+	`, patientID)
 	if err != nil {
 		return out
 	}
